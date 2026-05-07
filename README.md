@@ -7,7 +7,7 @@ A [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-market
 Inside Claude Code:
 
 ```text
-/plugin marketplace add spacelift-io/ai-plugins
+/plugin marketplace add spacelift-io/claude-plugins
 /plugin install spacelift@spacelift
 ```
 
