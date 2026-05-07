@@ -1,0 +1,18 @@
+{
+  "name": "spacelift",
+  "description": "Procedural guide and references for working with Spacelift via the spacelift-local MCP - manage stacks, runs, policies, spaces, integrations, and the lifecycle of cloud resources through Intent (OpenTofu/Terraform).",
+  "version": "0.1.0",
+  "author": {
+    "name": "Spacelift",
+    "url": "https://spacelift.io"
+  },
+  "homepage": "https://github.com/spacelift-io/ai-plugins",
+  "keywords": [
+    "spacelift",
+    "iac",
+    "opentofu",
+    "terraform",
+    "intent",
+    "mcp"
+  ]
+}

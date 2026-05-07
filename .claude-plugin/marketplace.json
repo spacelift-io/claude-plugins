@@ -1,0 +1,27 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "spacelift",
+  "description": "Claude Code plugins published by Spacelift, including skills, agents and commands for working with the Spacelift platform and OpenTofu/Terraform infrastructure.",
+  "owner": {
+    "name": "Spacelift",
+    "url": "https://spacelift.io"
+  },
+  "plugins": [
+    {
+      "name": "spacelift",
+      "source": "./plugins/spacelift",
+      "description": "Procedural guide and references for working with Spacelift via the spacelift-local MCP - manage stacks, runs, policies, spaces, integrations, and the lifecycle of cloud resources through Intent (OpenTofu/Terraform).",
+      "version": "0.1.0",
+      "category": "infrastructure",
+      "tags": [
+        "spacelift",
+        "iac",
+        "opentofu",
+        "terraform",
+        "intent",
+        "mcp"
+      ],
+      "homepage": "https://github.com/spacelift-io/ai-plugins"
+    }
+  ]
+}
