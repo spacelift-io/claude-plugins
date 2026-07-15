@@ -1,0 +1,2340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spacelift Policy Contract",
+  "description": "Complete schema defining all Spacelift policy types, their input data structures, and expected rule outputs",
+  "policyTypes": {
+    "ACCESS": {
+      "description": "Access policies control whether users can access specific stacks.",
+      "input": {
+        "allOf": [
+          {
+            "properties": {
+              "request": {
+                "$ref": "#/$defs/request",
+                "description": "Details about the access request"
+              }
+            },
+            "required": ["request"],
+            "type": "object"
+          },
+          {
+            "oneOf": [
+              {
+                "properties": {
+                  "session": {
+                    "$ref": "#/$defs/session",
+                    "description": "Session information for the user requesting access"
+                  }
+                },
+                "required": ["session"],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "slack": {
+                    "$ref": "#/$defs/slack",
+                    "description": "Slack access information"
+                  }
+                },
+                "required": ["slack"],
+                "type": "object"
+              }
+            ]
+          },
+          {
+            "oneOf": [
+              {
+                "properties": {
+                  "stack": {
+                    "$ref": "#/$defs/stack",
+                    "description": "The stack being accessed"
+                  }
+                },
+                "required": ["stack"],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "module": {
+                    "$ref": "#/$defs/module",
+                    "description": "The module being accessed"
+                  }
+                },
+                "required": ["module"],
+                "type": "object"
+              }
+            ]
+          }
+        ],
+        "description": "Access policy input with mutually exclusive authentication and resource types"
+      },
+      "rules": {
+        "properties": {
+          "allow": {
+            "description": "Allow access to the stack",
+            "type": "boolean"
+          },
+          "deny": {
+            "description": "Deny access to the stack",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "APPROVAL": {
+      "description": "Approval policies determine whether runs require manual approval before they can proceed.",
+      "input": {
+        "properties": {
+          "reviews": {
+            "properties": {
+              "current": {
+                "properties": {
+                  "approvals": {
+                    "description": "Current approvals for this run",
+                    "items": {
+                      "$ref": "#/$defs/run_approval_event"
+                    },
+                    "type": "array"
+                  },
+                  "rejections": {
+                    "description": "Current rejections for this run",
+                    "items": {
+                      "$ref": "#/$defs/run_approval_event"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": ["approvals", "rejections"],
+                "type": "object"
+              },
+              "older": {
+                "properties": {
+                  "approvals": {
+                    "description": "Previous approvals for this run",
+                    "items": {
+                      "$ref": "#/$defs/run_approval_event"
+                    },
+                    "type": "array"
+                  },
+                  "rejections": {
+                    "description": "Previous rejections for this run",
+                    "items": {
+                      "$ref": "#/$defs/run_approval_event"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": ["approvals", "rejections"],
+                "type": "object"
+              }
+            },
+            "required": ["current", "older"],
+            "type": "object"
+          },
+          "run": {
+            "$ref": "#/$defs/approval_run",
+            "description": "The run awaiting approval with additional approval-specific fields"
+          },
+          "stack": {
+            "$ref": "#/$defs/stack",
+            "description": "Stack associated with the run"
+          }
+        },
+        "required": ["run", "stack"],
+        "type": "object"
+      },
+      "rules": {
+        "properties": {
+          "approve": {
+            "description": "Automatically approve the run and allow it to proceed",
+            "type": "boolean"
+          },
+          "reject": {
+            "description": "Reject the run and prevent it from proceeding",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "GIT_PUSH": {
+      "description": "Push policies are triggered by Git push events and determine how Spacelift should respond to repository changes.",
+      "input": {
+        "allOf": [
+          {
+            "properties": {
+              "in_progress": {
+                "description": "List of runs currently in progress",
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/$defs/push_in_progress_run"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "string",
+                    "const": ""
+                  }
+                ]
+              },
+              "pull_request": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/pull_request_event"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Pull request information (for PR events)"
+              },
+              "push": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/push"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Push event information (may be null in some cases)"
+              },
+              "vcs_integration": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/vcs_integration"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "VCS integration information"
+              }
+            },
+            "required": [],
+            "type": "object"
+          },
+          {
+            "oneOf": [
+              {
+                "properties": {
+                  "stack": {
+                    "$ref": "#/$defs/stack",
+                    "description": "Stack that may be affected by this push"
+                  }
+                },
+                "required": ["stack"],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "module": {
+                    "$ref": "#/$defs/module",
+                    "description": "Module that may be affected by this push"
+                  }
+                },
+                "required": ["module"],
+                "type": "object"
+              }
+            ]
+          }
+        ],
+        "description": "Push policy input with either stack or module"
+      },
+      "rules": {
+        "properties": {
+          "ignore": {
+            "description": "Ignore this push event and do not trigger any runs",
+            "type": "boolean"
+          },
+          "propose": {
+            "description": "Create a proposed run for this push",
+            "type": "boolean"
+          },
+          "track": {
+            "description": "Track this push and potentially trigger a run",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "INTENT": {
+      "description": "Intent policies control resource operations evaluated through the Intent API.",
+      "input": {
+        "properties": {
+          "resource": {
+            "description": "Resource operation being evaluated",
+            "properties": {
+              "resource_id": {
+                "description": "Identifier of the resource being operated on",
+                "type": "string"
+              },
+              "provider": {
+                "description": "Provider name (e.g. hashicorp/aws)",
+                "type": "string"
+              },
+              "provider_version": {
+                "description": "Provider version (semver)",
+                "type": "string"
+              },
+              "resource_type": {
+                "description": "Resource type (e.g. aws_instance)",
+                "type": "string"
+              },
+              "operation": {
+                "description": "Operation being performed (create, update, delete, refresh, import, read)",
+                "type": "string"
+              },
+              "current_state": {
+                "description": "Current resource state from the provider",
+                "type": ["object", "null"]
+              },
+              "proposed_state": {
+                "description": "Proposed resource state",
+                "type": ["object", "null"]
+              }
+            },
+            "required": ["resource_id", "provider", "resource_type", "operation"],
+            "type": "object"
+          },
+          "reviews": {
+            "description": "Reviewer decisions on this operation",
+            "properties": {
+              "allow": {
+                "description": "Reviews approving the operation",
+                "items": {
+                  "$ref": "#/$defs/intent_review"
+                },
+                "type": ["array", "null"]
+              },
+              "deny": {
+                "description": "Reviews rejecting the operation",
+                "items": {
+                  "$ref": "#/$defs/intent_review"
+                },
+                "type": ["array", "null"]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": ["resource"],
+        "type": "object",
+        "description": "Intent policy input: the resource operation plus any prior reviewer decisions"
+      },
+      "rules": {
+        "properties": {
+          "allow": {
+            "description": "Reasons to allow the operation",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "deny": {
+            "description": "Reasons to deny the operation (vetoes allow)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "LOGIN": {
+      "description": "Login policies control user authentication and authorization.",
+      "input": {
+        "allOf": [
+          {
+            "properties": {
+              "request": {
+                "$ref": "#/$defs/request",
+                "description": "Details about the login request"
+              }
+            },
+            "required": ["request"],
+            "type": "object"
+          },
+          {
+            "oneOf": [
+              {
+                "properties": {
+                  "attachment": {
+                    "description": "Attachment data (may be null)",
+                    "type": ["object", "null"]
+                  },
+                  "session": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/session"
+                      },
+                      {
+                        "properties": {
+                          "member": {
+                            "description": "Whether the user is a member of the account",
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["member"],
+                        "type": "object"
+                      }
+                    ],
+                    "description": "Session information for the authenticating user"
+                  }
+                },
+                "required": ["session"],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "slack": {
+                    "$ref": "#/$defs/slack",
+                    "description": "Slack authentication information"
+                  }
+                },
+                "required": ["slack"],
+                "type": "object"
+              }
+            ]
+          },
+          {
+            "properties": {
+              "spaces": {
+                "description": "Available spaces for the user",
+                "items": {
+                  "$ref": "#/$defs/space"
+                },
+                "type": "array"
+              },
+              "roles": {
+                "description": "Available roles for the user",
+                "items": {
+                  "$ref": "#/$defs/role"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        ],
+        "description": "Login policy input with mutually exclusive user and Slack authentication"
+      },
+      "rules": {
+        "properties": {
+          "admin": {
+            "description": "Grant admin privileges to the user",
+            "type": "boolean"
+          },
+          "allow": {
+            "description": "Allow the login (non-admin access)",
+            "type": "boolean"
+          },
+          "deny": {
+            "description": "Deny the login attempt",
+            "type": "boolean"
+          },
+          "roles": {
+            "description": "Map of space slugs to lists of roles assigned to the user in those spaces",
+            "type": "object"
+          },
+          "space_admin": {
+            "description": "List of spaces where the user should have admin access",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "space_read": {
+            "description": "List of spaces where the user should have read access",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "space_write": {
+            "description": "List of spaces where the user should have write access",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "teams": {
+            "description": "List of teams to assign to the user",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "NOTIFICATION": {
+      "description": "Notification policies control when and how notifications are sent for various Spacelift events.",
+      "input": {
+        "allOf": [
+          {
+            "properties": {
+              "account": {
+                "properties": {
+                  "name": {
+                    "description": "Account display name",
+                    "type": "string"
+                  }
+                },
+                "required": ["name"],
+                "type": "object"
+              },
+              "webhook_endpoints": {
+                "description": "Available webhook endpoints",
+                "items": {
+                  "$ref": "#/$defs/webhook_endpoint"
+                },
+                "type": "array"
+              }
+            },
+            "required": ["account", "webhook_endpoints"],
+            "type": "object"
+          },
+          {
+            "anyOf": [
+              {
+                "if": {
+                  "properties": {
+                    "internal_error": true
+                  },
+                  "required": ["internal_error"]
+                },
+                "then": {
+                  "properties": {
+                    "internal_error": {
+                      "properties": {
+                        "error": {
+                          "description": "Error details",
+                          "type": "string"
+                        },
+                        "message": {
+                          "description": "Error message",
+                          "type": "string"
+                        },
+                        "severity": {
+                          "description": "Error severity level",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["severity", "message", "error"],
+                      "type": "object"
+                    }
+                  },
+                  "not": {
+                    "anyOf": [
+                      {"required": ["run_updated"]},
+                      {"required": ["module_version"]}
+                    ]
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "run_updated": true
+                  },
+                  "required": ["run_updated"]
+                },
+                "then": {
+                  "properties": {
+                    "run_updated": {
+                      "properties": {
+                        "note": {
+                          "description": "Optional note for the state transition",
+                          "type": ["string", "null"]
+                        },
+                        "plan_policy_decision": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/plan_policy_outcome"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Plan policy outcome for the run"
+                        },
+                        "policy_receipts": {
+                          "description": "Policy execution receipts",
+                          "items": {
+                            "$ref": "#/$defs/policy_receipt"
+                          },
+                          "type": "array"
+                        },
+                        "run": {
+                          "$ref": "#/$defs/notification_run",
+                          "description": "The run that was updated"
+                        },
+                        "stack": {
+                          "$ref": "#/$defs/stack",
+                          "description": "Stack associated with the run"
+                        },
+                        "state": {
+                          "description": "New run state",
+                          "type": "string"
+                        },
+                        "timing": {
+                          "description": "Run timing information",
+                          "type": "object"
+                        },
+                        "urls": {
+                          "description": "Related URLs",
+                          "properties": {
+                            "run": {
+                              "description": "URL to the run",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "username": {
+                          "description": "User who triggered the state change",
+                          "type": ["string", "null"]
+                        }
+                      },
+                      "required": ["run", "stack", "timing", "policy_receipts", "urls"],
+                      "type": "object"
+                    }
+                  },
+                  "not": {
+                    "anyOf": [
+                      {"required": ["internal_error"]},
+                      {"required": ["module_version"]}
+                    ]
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "module_version": true
+                  },
+                  "required": ["module_version"]
+                },
+                "then": {
+                  "properties": {
+                    "module_version": {
+                      "properties": {
+                        "module": {
+                          "$ref": "#/$defs/module",
+                          "description": "The module that has a new version"
+                        },
+                        "version": {
+                          "$ref": "#/$defs/version",
+                          "description": "The new module version"
+                        }
+                      },
+                      "required": ["module", "version"],
+                      "type": "object"
+                    }
+                  },
+                  "not": {
+                    "anyOf": [
+                      {"required": ["internal_error"]},
+                      {"required": ["run_updated"]}
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "description": "Notification policy input with different event types"
+      },
+      "rules": {
+        "properties": {
+          "channels": {
+            "description": "List of notification channels to use (email, slack, webhook, etc.)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "message": {
+            "description": "Custom message content for the notification",
+            "type": "string"
+          },
+          "send": {
+            "description": "Whether to send the notification",
+            "type": "boolean"
+          },
+          "subject": {
+            "description": "Custom subject/title for the notification",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "PLAN": {
+      "description": "Plan policies evaluate Terraform plans before they are applied.",
+      "input": {
+        "properties": {
+          "ansible": {
+            "description": "Ansible plan data (for Ansible stacks)",
+            "type": ["object", "null"]
+          },
+          "cloudformation": {
+            "description": "CloudFormation plan data (for CloudFormation stacks)",
+            "type": ["object", "null"]
+          },
+          "kubernetes": {
+            "description": "Kubernetes plan data (for Kubernetes stacks)",
+            "type": ["object", "null"]
+          },
+          "pulumi": {
+            "description": "Pulumi plan data (for Pulumi stacks)",
+            "type": ["object", "null"]
+          },
+          "spacelift": {
+            "allOf": [
+              {
+                "properties": {
+                  "commit": {
+                    "$ref": "#/$defs/commit",
+                    "description": "Git commit information"
+                  },
+                  "previous_run": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/plan_run"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Previous run information (if applicable)"
+                  },
+                  "request": {
+                    "$ref": "#/$defs/request",
+                    "description": "Plan request details"
+                  },
+                  "run": {
+                    "$ref": "#/$defs/plan_run",
+                    "description": "Run information"
+                  }
+                },
+                "required": ["commit", "request", "run"],
+                "type": "object"
+              },
+              {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "stack": {
+                        "$ref": "#/$defs/stack",
+                        "description": "Stack being planned"
+                      }
+                    },
+                    "required": ["stack"],
+                        "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "module": {
+                        "$ref": "#/$defs/module",
+                        "description": "Module being planned"
+                      }
+                    },
+                    "required": ["module"],
+                        "type": "object"
+                  }
+                ]
+              }
+            ],
+            "description": "Spacelift context with either stack or module"
+          },
+          "terraform": {
+            "description": "Terraform plan data (for Terraform stacks)",
+            "type": ["object", "null"]
+          },
+          "terragrunt": {
+            "description": "Terragrunt plan data (for Terragrunt stacks)",
+            "type": ["object", "null"]
+          },
+          "third_party_metadata": {
+            "description": "Third-party metadata (e.g., Infracost reports)",
+            "type": ["object", "null"]
+          }
+        },
+        "required": ["spacelift"],
+        "type": "object"
+      },
+      "rules": {
+        "properties": {
+          "deny": {
+            "description": "List of reasons to block the plan from being applied",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "warn": {
+            "description": "List of warnings about the plan",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "TASK": {
+      "description": "Task policies control the execution of administrative tasks within stacks.",
+      "input": {
+        "allOf": [
+          {
+            "properties": {
+              "request": {
+                "properties": {
+                  "command": {
+                    "description": "Command to be executed",
+                    "type": "string"
+                  },
+                  "remote_ip": {
+                    "description": "IP address of the request origin",
+                    "type": "string"
+                  },
+                  "timestamp_ns": {
+                    "$ref": "#/$defs/timestamp",
+                    "description": "Request timestamp"
+                  }
+                },
+                "required": ["command", "timestamp_ns"],
+                "type": "object"
+              },
+              "session": {
+                "$ref": "#/$defs/session",
+                "description": "Session information for the user executing the task"
+              }
+            },
+            "required": ["request", "session"],
+            "type": "object"
+          },
+          {
+            "oneOf": [
+              {
+                "properties": {
+                  "stack": {
+                    "$ref": "#/$defs/stack",
+                    "description": "Stack where the task is running"
+                  }
+                },
+                "required": ["stack"],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "module": {
+                    "$ref": "#/$defs/module",
+                    "description": "Module where the task is running"
+                  }
+                },
+                "required": ["module"],
+                "type": "object"
+              }
+            ]
+          }
+        ],
+        "description": "Task policy input with either stack or module"
+      },
+      "rules": {
+        "properties": {
+          "deny": {
+            "description": "List of reasons to block the task from executing",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "warn": {
+            "description": "List of warnings about the task",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "TRIGGER": {
+      "description": "Trigger policies are executed when tracked runs reach terminal states or when module versions are created.",
+      "input": {
+        "oneOf": [
+          {
+            "properties": {
+              "run": {
+                "$ref": "#/$defs/trigger_run",
+                "description": "The completed run that triggered this policy"
+              },
+              "stack": {
+                "$ref": "#/$defs/stack",
+                "description": "Stack associated with the completed run"
+              },
+              "stacks": {
+                "description": "List of candidate stacks for triggering",
+                "items": {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/stack"
+                    },
+                    {
+                      "properties": {
+                        "queued_runs": {
+                          "description": "Number of queued runs for this stack",
+                          "type": "integer"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              "workflow": {
+                "description": "Workflow runs information",
+                "items": {
+                  "properties": {
+                    "id": {
+                      "description": "Run identifier",
+                      "type": "string"
+                    },
+                    "stack_id": {
+                      "description": "Stack identifier",
+                      "type": "string"
+                    },
+                    "state": {
+                      "description": "Run state",
+                      "type": "string"
+                    },
+                    "type": {
+                      "description": "Run type",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "stack_id", "state", "type"],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": ["run", "stack"],
+            "type": "object",
+            "description": "Trigger policy input triggered by a completed run"
+          },
+          {
+            "properties": {
+              "module": {
+                "$ref": "#/$defs/module",
+                "description": "The module that had a new version"
+              },
+              "stacks": {
+                "description": "List of candidate stacks for triggering",
+                "items": {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/stack"
+                    },
+                    {
+                      "properties": {
+                        "queued_runs": {
+                          "description": "Number of queued runs for this stack",
+                          "type": "integer"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            },
+            "required": ["module", "stacks"],
+            "type": "object",
+            "description": "Trigger policy input triggered by a module version"
+          }
+        ],
+        "description": "Trigger policy input with either run-triggered or version-triggered variants"
+      },
+      "rules": {
+        "properties": {
+          "modules": {
+            "description": "List of module IDs that should be triggered",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "stacks": {
+            "description": "List of stack IDs that should be triggered as a result of this run completion",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "$defs": {
+    "commit": {
+      "properties": {
+        "author": {
+          "description": "Commit author",
+          "type": "string"
+        },
+        "branch": {
+          "description": "Git branch name",
+          "type": "string"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Commit creation timestamp"
+        },
+        "exist_on_tracked_branch": {
+          "description": "Whether the commit exists on the tracked branch",
+          "type": ["boolean", "null"]
+        },
+        "hash": {
+          "description": "Git commit hash",
+          "type": "string"
+        },
+        "message": {
+          "description": "Commit message",
+          "type": "string"
+        },
+        "pull_request_id": {
+          "description": "Pull request ID if the commit is from a PR",
+          "type": ["integer", "null"]
+        },
+        "tag": {
+          "description": "Git tag, if any",
+          "type": "string"
+        },
+        "url": {
+          "description": "URL to the commit",
+          "type": "string"
+        }
+      },
+      "required": ["author", "branch", "created_at", "message"],
+      "type": "object"
+    },
+    "intent_review": {
+      "properties": {
+        "author": {
+          "description": "Username of the reviewer",
+          "type": "string"
+        },
+        "request": {
+          "description": "Request metadata for the review",
+          "type": "object"
+        },
+        "session": {
+          "description": "Session metadata for the review",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "module": {
+      "properties": {
+        "administrative": {
+          "description": "Whether the module is administrative",
+          "type": "boolean"
+        },
+        "branch": {
+          "description": "Git branch tracked by this module",
+          "type": "string"
+        },
+        "contexts": {
+          "description": "Context slugs attached to the module",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "current_version": {
+          "description": "Current version string if applicable",
+          "type": ["string", "null"]
+        },
+        "id": {
+          "description": "Module identifier",
+          "type": "string"
+        },
+        "labels": {
+          "description": "Module labels",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "name": {
+          "description": "Module name",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Module namespace",
+          "type": "string"
+        },
+        "project_root": {
+          "description": "Project root directory",
+          "type": "string"
+        },
+        "repository": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "space": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/space"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Space the module belongs to"
+        },
+        "terraform_provider": {
+          "description": "Terraform provider for the module",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/version"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Version information if applicable"
+        },
+        "worker_pool": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/worker_pool"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Worker pool configuration"
+        }
+      },
+      "required": ["administrative", "branch", "id", "name", "namespace", "project_root", "repository", "terraform_provider"],
+      "type": "object"
+    },
+    "push": {
+      "properties": {
+        "affected_files": {
+          "description": "List of files affected by the push",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "author": {
+          "description": "Push author",
+          "type": "string"
+        },
+        "branch": {
+          "description": "Git branch",
+          "type": "string"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Push timestamp"
+        },
+        "hash": {
+          "description": "Git commit hash",
+          "type": "string"
+        },
+        "message": {
+          "description": "Commit message",
+          "type": "string"
+        },
+        "tag": {
+          "description": "Git tag if any",
+          "type": "string"
+        }
+      },
+      "required": ["affected_files", "author", "branch", "created_at", "hash", "message"],
+      "type": "object"
+    },
+    "request": {
+      "properties": {
+        "remote_ip": {
+          "description": "IP address of the request origin",
+          "type": "string"
+        },
+        "timestamp_ns": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Request timestamp"
+        }
+      },
+      "type": "object"
+    },
+    "session": {
+      "properties": {
+        "account_name": {
+          "description": "Account name for machine sessions",
+          "type": ["string", "null"]
+        },
+        "admin": {
+          "description": "Whether the session has admin privileges",
+          "type": ["boolean", "string"]
+        },
+        "creator_ip": {
+          "description": "IP address where the session was created",
+          "type": "string"
+        },
+        "idp_subject": {
+          "description": "Subject (sub) claim from the upstream IdP token, present for SSO and OIDC API key sessions",
+          "type": "string"
+        },
+        "login": {
+          "description": "Login identifier",
+          "type": "string"
+        },
+        "machine": {
+          "description": "Whether this is a machine session",
+          "type": "boolean"
+        },
+        "member": {
+          "description": "Whether the user is a member of the account",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "Display name of the user",
+          "type": "string"
+        },
+        "stack_id": {
+          "description": "Stack ID for machine sessions",
+          "type": ["string", "null"]
+        },
+        "teams": {
+          "description": "Teams the user belongs to",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        }
+      },
+      "required": ["machine", "teams"],
+      "type": "object"
+    },
+    "slack": {
+      "properties": {
+        "channel": {
+          "description": "Slack channel information",
+          "type": "object"
+        },
+        "command": {
+          "description": "Slack command used",
+          "type": "string"
+        },
+        "team": {
+          "description": "Slack team information",
+          "type": "object"
+        },
+        "user": {
+          "description": "Slack user information",
+          "type": "object"
+        }
+      },
+      "required": ["command", "user", "team", "channel"],
+      "type": "object"
+    },
+    "space": {
+      "properties": {
+        "id": {
+          "description": "Space identifier",
+          "type": "string"
+        },
+        "labels": {
+          "description": "Space labels",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "name": {
+          "description": "Space display name",
+          "type": "string"
+        }
+      },
+      "required": ["id", "name", "labels"],
+      "type": "object"
+    },
+    "stack": {
+      "properties": {
+        "additional_project_globs": {
+          "description": "Additional project glob patterns",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "administrative": {
+          "description": "Whether the stack is administrative",
+          "type": "boolean"
+        },
+        "autodeploy": {
+          "description": "Whether autodeploy is enabled",
+          "type": "boolean"
+        },
+        "branch": {
+          "description": "Git branch tracked by this stack",
+          "type": "string"
+        },
+        "contexts": {
+          "description": "Context slugs attached to the stack",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Stack identifier",
+          "type": "string"
+        },
+        "labels": {
+          "description": "Stack labels",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "locked_by": {
+          "description": "User who locked the stack, if any",
+          "type": ["string", "null"]
+        },
+        "name": {
+          "description": "Stack display name",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Stack namespace",
+          "type": "string"
+        },
+        "project_root": {
+          "description": "Project root directory",
+          "type": "string"
+        },
+        "repository": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "space": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/space"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Space the stack belongs to"
+        },
+        "state": {
+          "description": "Current stack state",
+          "type": "string"
+        },
+        "terraform_version": {
+          "description": "Terraform version used by the stack",
+          "type": ["string", "null"]
+        },
+        "terraform_workflow_tool": {
+          "description": "Terraform workflow tool",
+          "type": ["string", "null"]
+        },
+        "tracked_commit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/commit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Currently tracked commit"
+        },
+        "worker_pool": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/worker_pool"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Worker pool configuration"
+        }
+      },
+      "required": ["administrative", "autodeploy", "branch", "id", "name", "namespace", "project_root", "repository", "state"],
+      "type": "object"
+    },
+    "timestamp": {
+      "description": "Unix timestamp in nanoseconds",
+      "type": "integer"
+    },
+    "version": {
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/commit",
+          "description": "Git commit for this version"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Version creation timestamp"
+        },
+        "id": {
+          "description": "Version identifier",
+          "type": "string"
+        },
+        "latest": {
+          "description": "Whether this is the latest version",
+          "type": "boolean"
+        },
+        "number": {
+          "description": "Version number",
+          "type": "string"
+        },
+        "state": {
+          "description": "Version state",
+          "type": "string"
+        },
+        "test_runs": {
+          "description": "Test runs for this version",
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["id", "number", "created_at", "state", "latest", "commit", "test_runs"],
+      "type": "object"
+    },
+    "worker_pool": {
+      "properties": {
+        "id": {
+          "description": "Worker pool identifier (null for public pool)",
+          "type": ["string", "null"]
+        },
+        "labels": {
+          "description": "Worker pool labels (null for public pool)",
+          "type": ["array", "null"]
+        },
+        "name": {
+          "description": "Worker pool name (null for public pool)",
+          "type": ["string", "null"]
+        },
+        "public": {
+          "description": "Whether this is the public worker pool",
+          "type": "boolean"
+        }
+      },
+      "required": ["public"],
+      "type": "object"
+    },
+    "role": {
+      "properties": {
+        "id": {
+          "description": "Role identifier",
+          "type": "string"
+        },
+        "name": {
+          "description": "Role display name",
+          "type": "string"
+        },
+        "slug": {
+          "description": "Role slug",
+          "type": "string"
+        },
+        "ulid": {
+          "description": "Role ULID (Universally Unique Lexicographically Sortable Identifier)",
+          "type": "string"
+        }
+      },
+      "required": ["id", "name", "slug", "ulid"],
+      "type": "object"
+    },
+    "webhook_endpoint": {
+      "properties": {
+        "id": {
+          "description": "Webhook endpoint identifier",
+          "type": "string"
+        },
+        "labels": {
+          "description": "Webhook endpoint labels",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["id", "labels"],
+      "type": "object"
+    },
+    "vcs_integration": {
+      "properties": {
+        "id": {
+          "description": "VCS integration identifier",
+          "type": "string"
+        },
+        "description": {
+          "description": "VCS integration description",
+          "type": "string"
+        },
+        "is_default": {
+          "description": "Whether this is the default integration",
+          "type": "boolean"
+        },
+        "labels": {
+          "description": "VCS integration labels",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "description": "VCS integration name",
+          "type": "string"
+        },
+        "space": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/space"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Space the integration belongs to"
+        },
+        "provider": {
+          "description": "VCS provider type",
+          "type": "string"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Last update timestamp"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "pull_request_event": {
+      "properties": {
+        "action_initiator": {
+          "description": "Who initiated this PR action",
+          "type": "string"
+        },
+        "action": {
+          "description": "PR action type",
+          "type": "string"
+        },
+        "author": {
+          "description": "PR author",
+          "type": "string"
+        },
+        "base": {
+          "$ref": "#/$defs/commit",
+          "description": "Base commit for the PR"
+        },
+        "closed": {
+          "description": "Whether the PR is closed",
+          "type": "boolean"
+        },
+        "diff": {
+          "description": "Files affected by the PR",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "draft": {
+          "description": "Whether this is a draft PR",
+          "type": "boolean"
+        },
+        "head": {
+          "$ref": "#/$defs/commit",
+          "description": "Head commit for the PR"
+        },
+        "head_owner": {
+          "description": "Owner of the head repository",
+          "type": "string"
+        },
+        "id": {
+          "description": "PR identifier",
+          "type": "integer"
+        },
+        "labels": {
+          "description": "PR labels",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "description": "PR title",
+          "type": "string"
+        },
+        "approved": {
+          "description": "Whether the PR is approved",
+          "type": "boolean"
+        },
+        "mergeable": {
+          "description": "Whether the PR is mergeable",
+          "type": "boolean"
+        },
+        "undiverged": {
+          "description": "Whether the PR is undiverged",
+          "type": "boolean"
+        },
+        "comment": {
+          "description": "PR comment if applicable",
+          "type": ["string", "object", "null"]
+        }
+      },
+      "required": ["action", "author", "base", "closed", "diff", "draft", "head", "id", "labels", "title"],
+      "type": "object"
+    },
+    "runtime_config": {
+      "properties": {
+        "git_sparse_checkout_paths": {
+          "description": "Git sparse checkout paths",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "after_apply": {
+          "description": "Commands to run after apply",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "after_destroy": {
+          "description": "Commands to run after destroy",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "after_init": {
+          "description": "Commands to run after init",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "after_perform": {
+          "description": "Commands to run after perform",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "after_plan": {
+          "description": "Commands to run after plan",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "after_run": {
+          "description": "Commands to run after the entire run",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "before_apply": {
+          "description": "Commands to run before apply",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "before_destroy": {
+          "description": "Commands to run before destroy",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "before_init": {
+          "description": "Commands to run before init",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "before_perform": {
+          "description": "Commands to run before perform",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "before_plan": {
+          "description": "Commands to run before plan",
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        },
+        "environment": {
+          "description": "Environment variables",
+          "type": "object"
+        },
+        "project_root": {
+          "description": "Project root directory",
+          "type": "string"
+        },
+        "runner_image": {
+          "description": "Docker image used for the run",
+          "type": "string"
+        },
+        "terraform_version": {
+          "description": "Terraform version",
+          "type": "string"
+        }
+      },
+      "required": ["environment", "project_root", "runner_image", "terraform_version"],
+      "type": "object"
+    },
+    "entity_change": {
+      "properties": {
+        "phase": {
+          "description": "Phase of the change (plan or apply)",
+          "type": "string"
+        },
+        "action": {
+          "description": "Type of change action",
+          "type": "string"
+        },
+        "moved": {
+          "description": "Whether the entity was moved",
+          "type": "boolean"
+        },
+        "entity": {
+          "description": "Entity data",
+          "type": "object"
+        }
+      },
+      "required": ["phase", "action", "entity"],
+      "type": "object"
+    },
+    "run_approval_event": {
+      "properties": {
+        "author": {
+          "description": "Author of the approval/rejection",
+          "type": "string"
+        },
+        "author_roles": {
+          "description": "Roles the author had at the time of the event",
+          "items": {
+            "$ref": "#/$defs/role"
+          },
+          "type": ["array", "null"]
+        },
+        "request": {
+          "description": "Request data for the approval event",
+          "type": "object"
+        },
+        "session": {
+          "description": "Session data for the approval event",
+          "type": "object"
+        },
+        "state": {
+          "description": "State of the approval event",
+          "type": "string"
+        },
+        "state_version": {
+          "description": "State version of the approval event",
+          "type": "integer"
+        }
+      },
+      "required": ["author", "state", "state_version"],
+      "type": "object"
+    },
+    "policy_receipt": {
+      "properties": {
+        "type": {
+          "description": "Policy type",
+          "type": "string"
+        },
+        "name": {
+          "description": "Policy name",
+          "type": "string"
+        },
+        "outcome": {
+          "description": "Policy execution outcome",
+          "type": "object"
+        },
+        "flags": {
+          "description": "Policy flags",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["type", "name", "outcome", "flags"],
+      "type": "object"
+    },
+    "plan_policy_outcome": {
+      "properties": {
+        "deny": {
+          "description": "List of deny reasons",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "warn": {
+          "description": "List of warnings",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "run": {
+      "properties": {
+        "based_on_local_workspace": {
+          "description": "Whether the run is based on local workspace",
+          "type": "boolean"
+        },
+        "branch": {
+          "description": "Git branch for the run",
+          "type": "string"
+        },
+        "changes": {
+          "description": "Entity changes for the run",
+          "items": {
+            "$ref": "#/$defs/entity_change"
+          },
+          "type": "array"
+        },
+        "command": {
+          "description": "Command executed for the run",
+          "type": ["string", "null"]
+        },
+        "commit": {
+          "$ref": "#/$defs/commit",
+          "description": "Git commit for the run"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Run creation timestamp"
+        },
+        "creator_session": {
+          "$ref": "#/$defs/session",
+          "description": "Session that created the run"
+        },
+        "drift_detection": {
+          "description": "Whether this is a drift detection run",
+          "type": "boolean"
+        },
+        "flags": {
+          "description": "Feature flags enabled for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Run identifier",
+          "type": "string"
+        },
+        "runtime_config": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/runtime_config"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Runtime configuration for the run"
+        },
+        "state": {
+          "description": "Current run state",
+          "type": "string"
+        },
+        "states_history": {
+          "description": "History of state transitions",
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "triggered_by": {
+          "description": "Who or what triggered the run",
+          "type": ["string", "null"]
+        },
+        "type": {
+          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "type": "string"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Last update timestamp"
+        },
+        "user_provided_metadata": {
+          "description": "User-provided metadata for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["created_at", "id", "state", "triggered_by", "type", "updated_at"],
+      "type": "object"
+    },
+    "approval_run": {
+      "properties": {
+        "based_on_local_workspace": {
+          "description": "Whether the run is based on local workspace",
+          "type": "boolean"
+        },
+        "branch": {
+          "description": "Git branch for the run",
+          "type": "string"
+        },
+        "changes": {
+          "description": "Entity changes for the run",
+          "items": {
+            "$ref": "#/$defs/entity_change"
+          },
+          "type": "array"
+        },
+        "command": {
+          "description": "Command executed for the run",
+          "type": ["string", "null"]
+        },
+        "commit": {
+          "$ref": "#/$defs/commit",
+          "description": "Git commit for the run"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Run creation timestamp"
+        },
+        "creator_session": {
+          "$ref": "#/$defs/session",
+          "description": "Session that created the run"
+        },
+        "drift_detection": {
+          "description": "Whether this is a drift detection run",
+          "type": "boolean"
+        },
+        "flags": {
+          "description": "Feature flags enabled for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Run identifier",
+          "type": "string"
+        },
+        "repository_runtime_config_changed": {
+          "description": "Whether the repository runtime config has changed (approval-specific)",
+          "type": "boolean"
+        },
+        "runtime_config": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/runtime_config"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Runtime configuration for the run"
+        },
+        "state": {
+          "description": "Current run state",
+          "type": "string"
+        },
+        "triggered_by": {
+          "description": "Who or what triggered the run",
+          "type": ["string", "null"]
+        },
+        "type": {
+          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "type": "string"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Last update timestamp"
+        },
+        "user_provided_metadata": {
+          "description": "User-provided metadata for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["created_at", "id", "state", "triggered_by", "type", "updated_at"],
+      "type": "object"
+    },
+    "plan_run": {
+      "properties": {
+        "based_on_local_workspace": {
+          "description": "Whether the run is based on local workspace",
+          "type": "boolean"
+        },
+        "branch": {
+          "description": "Git branch for the run",
+          "type": "string"
+        },
+        "changes": {
+          "description": "Entity changes for the run",
+          "items": {
+            "$ref": "#/$defs/entity_change"
+          },
+          "type": "array"
+        },
+        "command": {
+          "description": "Command executed for the run",
+          "type": ["string", "null"]
+        },
+        "commit": {
+          "$ref": "#/$defs/commit",
+          "description": "Git commit for the run"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Run creation timestamp"
+        },
+        "creator_session": {
+          "$ref": "#/$defs/session",
+          "description": "Session that created the run"
+        },
+        "drift_detection": {
+          "description": "Whether this is a drift detection run",
+          "type": "boolean"
+        },
+        "flags": {
+          "description": "Feature flags enabled for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Run identifier",
+          "type": "string"
+        },
+        "runtime_config": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/runtime_config"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Runtime configuration for the run"
+        },
+        "state": {
+          "description": "Current run state",
+          "type": "string"
+        },
+        "triggered_by": {
+          "description": "Who or what triggered the run",
+          "type": ["string", "null"]
+        },
+        "type": {
+          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "type": "string"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Last update timestamp"
+        },
+        "user_provided_metadata": {
+          "description": "User-provided metadata for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["created_at", "id", "state", "triggered_by", "type", "updated_at"],
+      "type": "object"
+    },
+    "notification_run": {
+      "properties": {
+        "based_on_local_workspace": {
+          "description": "Whether the run is based on local workspace",
+          "type": "boolean"
+        },
+        "branch": {
+          "description": "Git branch for the run",
+          "type": "string"
+        },
+        "changes": {
+          "description": "Entity changes for the run",
+          "items": {
+            "$ref": "#/$defs/entity_change"
+          },
+          "type": "array"
+        },
+        "command": {
+          "description": "Command executed for the run",
+          "type": ["string", "null"]
+        },
+        "commit": {
+          "$ref": "#/$defs/commit",
+          "description": "Git commit for the run"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Run creation timestamp"
+        },
+        "creator_session": {
+          "$ref": "#/$defs/session",
+          "description": "Session that created the run"
+        },
+        "drift_detection": {
+          "description": "Whether this is a drift detection run",
+          "type": "boolean"
+        },
+        "flags": {
+          "description": "Feature flags enabled for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Run identifier",
+          "type": "string"
+        },
+        "runtime_config": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/runtime_config"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Runtime configuration for the run"
+        },
+        "state": {
+          "description": "Current run state",
+          "type": "string"
+        },
+        "states_history": {
+          "description": "History of state transitions",
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "triggered_by": {
+          "description": "Who or what triggered the run",
+          "type": ["string", "null"]
+        },
+        "type": {
+          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "type": "string"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Last update timestamp"
+        },
+        "user_provided_metadata": {
+          "description": "User-provided metadata for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["created_at", "id", "state", "triggered_by", "type", "updated_at"],
+      "type": "object"
+    },
+    "trigger_run": {
+      "properties": {
+        "based_on_local_workspace": {
+          "description": "Whether the run is based on local workspace",
+          "type": "boolean"
+        },
+        "branch": {
+          "description": "Git branch for the run",
+          "type": "string"
+        },
+        "changes": {
+          "description": "Entity changes for the run",
+          "items": {
+            "$ref": "#/$defs/entity_change"
+          },
+          "type": "array"
+        },
+        "command": {
+          "description": "Command executed for the run",
+          "type": ["string", "null"]
+        },
+        "commit": {
+          "$ref": "#/$defs/commit",
+          "description": "Git commit for the run"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Run creation timestamp"
+        },
+        "creator_session": {
+          "$ref": "#/$defs/session",
+          "description": "Session that created the run"
+        },
+        "drift_detection": {
+          "description": "Whether this is a drift detection run",
+          "type": "boolean"
+        },
+        "flags": {
+          "description": "Feature flags enabled for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Run identifier",
+          "type": "string"
+        },
+        "runtime_config": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/runtime_config"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Runtime configuration for the run"
+        },
+        "state": {
+          "description": "Current run state - must be terminal",
+          "enum": ["FINISHED", "FAILED", "CANCELED", "DISCARDED", "STOPPED", "SKIPPED"],
+          "type": "string"
+        },
+        "states_history": {
+          "description": "History of state transitions",
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "triggered_by": {
+          "description": "Who or what triggered the run",
+          "type": ["string", "null"]
+        },
+        "type": {
+          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "type": "string"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Last update timestamp"
+        },
+        "user_provided_metadata": {
+          "description": "User-provided metadata for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["created_at", "id", "state", "triggered_by", "type", "updated_at"],
+      "type": "object"
+    },
+    "push_in_progress_run": {
+      "properties": {
+        "based_on_local_workspace": {
+          "description": "Whether the run is based on local workspace",
+          "type": "boolean"
+        },
+        "branch": {
+          "description": "Git branch for the run",
+          "type": "string"
+        },
+        "command": {
+          "description": "Command executed for the run",
+          "type": ["string", "null"]
+        },
+        "commit": {
+          "$ref": "#/$defs/commit",
+          "description": "Git commit for the run"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Run creation timestamp"
+        },
+        "drift_detection": {
+          "description": "Whether this is a drift detection run",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "Run identifier",
+          "type": "string"
+        },
+        "state": {
+          "description": "Current run state",
+          "type": "string"
+        },
+        "triggered_by": {
+          "description": "Who or what triggered the run",
+          "type": ["string", "null"]
+        },
+        "type": {
+          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "type": "string"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "Last update timestamp"
+        },
+        "user_provided_metadata": {
+          "description": "User-provided metadata for the run",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["created_at", "id", "state", "triggered_by", "type", "updated_at"],
+      "type": "object"
+    }
+  }
+}
