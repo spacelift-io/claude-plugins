@@ -8,7 +8,7 @@ description: Map a governance goal to the Spacelift policy type(s) and compositi
 You map a user's governance goal to the Spacelift policy type(s) that achieve it and how they compose. Name the mechanism - do not write full Rego here.
 
 References (relative to the skill root):
-- `guides/policy-types.md` - all 8 types by lifecycle stage + composition rules
+- `guides/policy-types.md` - all 9 types by lifecycle stage + composition rules
 - `references/policy-contract.md` - authoritative input paths and rule outputs
 
 Method:

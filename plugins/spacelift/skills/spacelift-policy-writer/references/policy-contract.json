@@ -70,12 +70,29 @@
       },
       "rules": {
         "properties": {
-          "allow": {
-            "description": "Allow access to the stack",
+          "deny": {
+            "description": "Deny all access to the stack or module, whatever the other rules decide",
             "type": "boolean"
           },
-          "deny": {
-            "description": "Deny access to the stack",
+          "deny_write": {
+            "description": "Suppress write access: when true, a write rule that would otherwise grant write access is ignored, leaving read access if the read rule grants it and denial otherwise",
+            "type": "boolean"
+          },
+          "flag": {
+            "$ref": "#/$defs/policy_flag"
+          },
+          "read": {
+            "description": "Grant read access to the stack or module",
+            "type": "boolean"
+          },
+          "reset_flag": {
+            "$ref": "#/$defs/policy_reset_flag"
+          },
+          "sample": {
+            "$ref": "#/$defs/policy_sample"
+          },
+          "write": {
+            "description": "Grant write access to the stack or module. Write implies read",
             "type": "boolean"
           }
         },
@@ -106,7 +123,8 @@
                   }
                 },
                 "required": ["approvals", "rejections"],
-                "type": "object"
+                "type": "object",
+                "description": "Reviews cast against the current state of the run"
               },
               "older": {
                 "properties": {
@@ -126,11 +144,13 @@
                   }
                 },
                 "required": ["approvals", "rejections"],
-                "type": "object"
+                "type": "object",
+                "description": "Reviews cast before the run last changed"
               }
             },
             "required": ["current", "older"],
-            "type": "object"
+            "type": "object",
+            "description": "Approvals and rejections recorded for this run"
           },
           "run": {
             "$ref": "#/$defs/approval_run",
@@ -147,12 +167,35 @@
       "rules": {
         "properties": {
           "approve": {
-            "description": "Automatically approve the run and allow it to proceed",
+            "description": "Approve the run and allow it to proceed",
             "type": "boolean"
+          },
+          "approve_with_note": {
+            "description": "Reasons to approve the run. A non-empty list approves it, and each entry is recorded against the approval",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "flag": {
+            "$ref": "#/$defs/policy_flag"
           },
           "reject": {
             "description": "Reject the run and prevent it from proceeding",
             "type": "boolean"
+          },
+          "reject_with_note": {
+            "description": "Reasons to reject the run. A non-empty list rejects it, and each entry is recorded against the rejection",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reset_flag": {
+            "$ref": "#/$defs/policy_reset_flag"
+          },
+          "sample": {
+            "$ref": "#/$defs/policy_sample"
           }
         },
         "type": "object"
@@ -165,7 +208,6 @@
           {
             "properties": {
               "in_progress": {
-                "description": "List of runs currently in progress",
                 "anyOf": [
                   {
                     "items": {
@@ -177,7 +219,8 @@
                     "type": "string",
                     "const": ""
                   }
-                ]
+                ],
+                "description": "Runs currently in progress for this stack. The builders always emit an array, empty when there are none; the empty-string form is accepted because a stored input carried it"
               },
               "pull_request": {
                 "anyOf": [
@@ -231,7 +274,20 @@
               {
                 "properties": {
                   "module": {
-                    "$ref": "#/$defs/module",
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/module"
+                      },
+                      {
+                        "properties": {
+                          "current_version": {
+                            "description": "Number of the module's latest version. Reads 0.0.0 when the module has no version yet",
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    ],
                     "description": "Module that may be affected by this push"
                   }
                 },
@@ -245,17 +301,88 @@
       },
       "rules": {
         "properties": {
-          "ignore": {
-            "description": "Ignore this push event and do not trigger any runs",
+          "allow_fork": {
+            "description": "Allow a run for a pull request opened from a forked repository",
             "type": "boolean"
+          },
+          "cancel": {
+            "description": "Identifiers of in-progress runs to cancel",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "external_dependency": {
+            "description": "External dependency markers the resulting run must wait on",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fail": {
+            "description": "Report the push as failed against the commit",
+            "type": "boolean"
+          },
+          "flag": {
+            "$ref": "#/$defs/policy_flag"
+          },
+          "ignore": {
+            "description": "Ignore the push entirely",
+            "type": "boolean"
+          },
+          "ignore_track": {
+            "description": "Suppress tracking: when true, a track rule that would otherwise track the commit is ignored, leaving a proposed run if the propose rule is set and ignoring the push otherwise",
+            "type": "boolean"
+          },
+          "lock": {
+            "description": "Lock the stack under this identifier. Every policy evaluated for the push must agree on the value",
+            "type": "string"
+          },
+          "message": {
+            "description": "Text to send as the commit status message in place of the default. Entries from every policy evaluated for the push are joined with a comma",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "module_version": {
+            "description": "Version to publish when the push targets a module",
+            "type": "string"
+          },
+          "notify": {
+            "description": "Send a commit status check for a push Spacelift would otherwise ignore without one. Applies only to ignored pushes, so setting it false does not suppress checks for any other outcome",
+            "type": "boolean"
+          },
+          "notrigger": {
+            "description": "Track the commit without triggering a run for it",
+            "type": "boolean"
+          },
+          "prioritize": {
+            "description": "Put the resulting run ahead of others on a private worker pool queue",
+            "type": "boolean"
+          },
+          "priority": {
+            "description": "Priority level of the resulting run on a private worker pool queue: high, normal or low. Cannot be combined with prioritize",
+            "type": "string",
+            "enum": ["high", "normal", "low"]
           },
           "propose": {
-            "description": "Create a proposed run for this push",
+            "description": "Trigger a proposed run without tracking the commit",
             "type": "boolean"
           },
+          "reset_flag": {
+            "$ref": "#/$defs/policy_reset_flag"
+          },
+          "sample": {
+            "$ref": "#/$defs/policy_sample"
+          },
           "track": {
-            "description": "Track this push and potentially trigger a run",
+            "description": "Track the pushed commit and trigger a tracked run",
             "type": "boolean"
+          },
+          "unlock": {
+            "description": "Unlock the stack held under this identifier",
+            "type": "string"
           }
         },
         "type": "object"
@@ -285,16 +412,18 @@
                 "type": "string"
               },
               "operation": {
-                "description": "Operation being performed (create, update, delete, refresh, import, read)",
+                "description": "Operation being performed (create, update, delete, refresh, import)",
                 "type": "string"
               },
               "current_state": {
-                "description": "Current resource state from the provider",
-                "type": ["object", "null"]
+                "description": "Current resource state. Keys are defined by the resource's provider, not by Spacelift",
+                "type": ["object", "null"],
+                "additionalProperties": true
               },
               "proposed_state": {
-                "description": "Proposed resource state",
-                "type": ["object", "null"]
+                "description": "Proposed resource state. Keys are defined by the resource's provider, not by Spacelift",
+                "type": ["object", "null"],
+                "additionalProperties": true
               }
             },
             "required": ["resource_id", "provider", "resource_type", "operation"],
@@ -304,18 +433,18 @@
             "description": "Reviewer decisions on this operation",
             "properties": {
               "allow": {
-                "description": "Reviews approving the operation",
+                "description": "Reviews approving the operation, empty when there are none",
                 "items": {
                   "$ref": "#/$defs/intent_review"
                 },
-                "type": ["array", "null"]
+                "type": "array"
               },
               "deny": {
-                "description": "Reviews rejecting the operation",
+                "description": "Reviews rejecting the operation, empty when there are none",
                 "items": {
                   "$ref": "#/$defs/intent_review"
                 },
-                "type": ["array", "null"]
+                "type": "array"
               }
             },
             "type": "object"
@@ -340,6 +469,15 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "flag": {
+            "$ref": "#/$defs/policy_flag"
+          },
+          "reset_flag": {
+            "$ref": "#/$defs/policy_reset_flag"
+          },
+          "sample": {
+            "$ref": "#/$defs/policy_sample"
           }
         },
         "type": "object"
@@ -363,10 +501,6 @@
             "oneOf": [
               {
                 "properties": {
-                  "attachment": {
-                    "description": "Attachment data (may be null)",
-                    "type": ["object", "null"]
-                  },
                   "session": {
                     "allOf": [
                       {
@@ -375,7 +509,7 @@
                       {
                         "properties": {
                           "member": {
-                            "description": "Whether the user is a member of the account",
+                            "description": "Whether the account's identity provider counts the user as a member. With GitHub, true for members of the account's GitHub organization and false for any other GitHub user. With SAML or OIDC, always true. With Google, GitLab or Microsoft, true only for the admin email, which skips login policies, so false for every user a login policy sees",
                             "type": "boolean"
                           }
                         },
@@ -426,44 +560,62 @@
       "rules": {
         "properties": {
           "admin": {
-            "description": "Grant admin privileges to the user",
+            "description": "Grant admin privileges to the user. True in any login policy on the account grants them, unless deny_admin is true in any",
             "type": "boolean"
           },
           "allow": {
-            "description": "Allow the login (non-admin access)",
+            "description": "Allow the login (non-admin access). True in any login policy on the account lets the user in. session.login is set on every session, so a condition that only checks that it is set lets in anyone the identity provider authenticates",
             "type": "boolean"
           },
           "deny": {
-            "description": "Deny the login attempt",
+            "description": "Deny the login attempt. True in any login policy on the account denies the login, whatever the other policies allow",
             "type": "boolean"
           },
+          "deny_admin": {
+            "description": "Deny admin privileges while leaving non-admin access intact. It cancels only the admin rule: a space-admin role on the root space still makes the user an account admin",
+            "type": "boolean"
+          },
+          "deny_message": {
+            "description": "Messages shown to the user if the login is denied. A message never denies the login on its own; the allow, admin and deny rules decide that",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "flag": {
+            "$ref": "#/$defs/policy_flag"
+          },
+          "reset_flag": {
+            "$ref": "#/$defs/policy_reset_flag"
+          },
           "roles": {
-            "description": "Map of space slugs to lists of roles assigned to the user in those spaces",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "description": "Role slugs granted in this space, keyed by slug. Only entries set to true are granted",
+                  "type": "object"
+                },
+                {
+                  "description": "Role slugs granted in this space",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ]
+            },
+            "description": "Role slugs to grant, keyed by space slug. Grants from every login policy on the account add up, so a grant without a condition applies to every user that any login policy lets in. Read role slugs from roles[].slug in the input or from the slug field of Role with query. A space-admin role on the root space makes the user an account admin, whatever deny_admin says",
             "type": "object"
           },
-          "space_admin": {
-            "description": "List of spaces where the user should have admin access",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
+          "sample": {
+            "$ref": "#/$defs/policy_sample",
+            "description": "Advanced: whether to store this evaluation's input and result in the policy's evaluation records. Unlike every other policy type, login policies sample by default, so set this to false to opt out."
           },
-          "space_read": {
-            "description": "List of spaces where the user should have read access",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "space_write": {
-            "description": "List of spaces where the user should have write access",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "teams": {
-            "description": "List of teams to assign to the user",
+          "team": {
+            "description": "List of teams to assign to the user. They replace the teams from the identity provider, so the user gets every role bound to them. Teams from every login policy on the account add up, so a team without a condition applies to every user that any login policy lets in",
             "items": {
               "type": "string"
             },
@@ -487,7 +639,8 @@
                   }
                 },
                 "required": ["name"],
-                "type": "object"
+                "type": "object",
+                "description": "The account the notification belongs to"
               },
               "webhook_endpoints": {
                 "description": "Available webhook endpoints",
@@ -501,7 +654,7 @@
             "type": "object"
           },
           {
-            "anyOf": [
+            "allOf": [
               {
                 "if": {
                   "properties": {
@@ -527,13 +680,15 @@
                         }
                       },
                       "required": ["severity", "message", "error"],
-                      "type": "object"
+                      "type": "object",
+                      "description": "Set when Spacelift itself failed, rather than a run or module version changing"
                     }
                   },
                   "not": {
                     "anyOf": [
                       {"required": ["run_updated"]},
-                      {"required": ["module_version"]}
+                      {"required": ["module_version"]},
+                      {"required": ["worker_usage"]}
                     ]
                   }
                 }
@@ -565,11 +720,11 @@
                           "description": "Plan policy outcome for the run"
                         },
                         "policy_receipts": {
-                          "description": "Policy execution receipts",
+                          "description": "Policy execution receipts. Null when the run has none",
                           "items": {
                             "$ref": "#/$defs/policy_receipt"
                           },
-                          "type": "array"
+                          "type": ["array", "null"]
                         },
                         "run": {
                           "$ref": "#/$defs/notification_run",
@@ -584,8 +739,22 @@
                           "type": "string"
                         },
                         "timing": {
-                          "description": "Run timing information",
-                          "type": "object"
+                          "description": "Time spent in each state the run has left. The state the run is in now has no entry, and the value is null until the run leaves its first state",
+                          "items": {
+                            "properties": {
+                              "duration": {
+                                "description": "Nanoseconds spent in the state",
+                                "type": "integer"
+                              },
+                              "state": {
+                                "description": "Run state",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["duration", "state"],
+                            "type": "object"
+                          },
+                          "type": ["array", "null"]
                         },
                         "urls": {
                           "description": "Related URLs",
@@ -603,13 +772,15 @@
                         }
                       },
                       "required": ["run", "stack", "timing", "policy_receipts", "urls"],
-                      "type": "object"
+                      "type": "object",
+                      "description": "Set when a run changed state"
                     }
                   },
                   "not": {
                     "anyOf": [
                       {"required": ["internal_error"]},
-                      {"required": ["module_version"]}
+                      {"required": ["module_version"]},
+                      {"required": ["worker_usage"]}
                     ]
                   }
                 }
@@ -635,17 +806,134 @@
                         }
                       },
                       "required": ["module", "version"],
-                      "type": "object"
+                      "type": "object",
+                      "description": "Set when a module version changed state"
                     }
                   },
                   "not": {
                     "anyOf": [
                       {"required": ["internal_error"]},
-                      {"required": ["run_updated"]}
+                      {"required": ["run_updated"]},
+                      {"required": ["worker_usage"]}
+                    ]
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "worker_usage": true
+                  },
+                  "required": ["worker_usage"]
+                },
+                "then": {
+                  "properties": {
+                    "worker_usage": {
+                      "properties": {
+                        "severity": {
+                          "description": "Severity of the usage message",
+                          "type": "string"
+                        },
+                        "message": {
+                          "description": "Human-readable summary of the usage against the contract",
+                          "type": "string"
+                        },
+                        "contracted_limit": {
+                          "description": "Worker limit the contract allows",
+                          "type": "integer"
+                        },
+                        "contracted_percentile": {
+                          "description": "Percentile the contract bills concurrency at",
+                          "type": "integer"
+                        },
+                        "concurrency_at_contracted_percentile": {
+                          "description": "Concurrent workers at the contracted percentile over this billing cycle, up to the last midnight UTC",
+                          "type": "integer"
+                        },
+                        "previous_concurrency_at_contracted_percentile": {
+                          "description": "concurrency_at_contracted_percentile a day earlier",
+                          "type": "integer"
+                        },
+                        "limit_ratio": {
+                          "description": "concurrency_at_contracted_percentile over contracted_limit. Zero when the contract carries no worker cap, since there is nothing to be over",
+                          "type": "number"
+                        },
+                        "previous_limit_ratio": {
+                          "description": "limit_ratio a day earlier. Both figures are taken at a midnight, exactly a day apart, so comparing them fires once when a threshold is first crossed",
+                          "type": "number"
+                        },
+                        "burst_budget_minutes": {
+                          "description": "Minutes above the contracted limit the contract allows for the cycle",
+                          "type": "integer"
+                        },
+                        "burst_used_minutes": {
+                          "description": "Minutes spent above the contracted limit this cycle, up to the last midnight UTC",
+                          "type": "integer"
+                        },
+                        "burst_remaining_minutes": {
+                          "description": "burst_budget_minutes less burst_used_minutes, floored at zero",
+                          "type": "integer"
+                        },
+                        "burst_ratio": {
+                          "description": "burst_used_minutes over burst_budget_minutes. Zero when the contract allows no burst, since there is no budget to spend",
+                          "type": "number"
+                        },
+                        "previous_burst_used_minutes": {
+                          "description": "burst_used_minutes a day earlier",
+                          "type": "integer"
+                        },
+                        "previous_burst_ratio": {
+                          "description": "burst_ratio a day earlier. Compare with burst_ratio to fire once when a threshold is first crossed",
+                          "type": "number"
+                        },
+                        "cycle_start": {
+                          "description": "Start of the billing cycle, as Unix seconds",
+                          "type": "integer"
+                        },
+                        "cycle_end": {
+                          "description": "End of the billing cycle, as Unix seconds. Exclusive upper bound",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "severity",
+                        "message",
+                        "contracted_limit",
+                        "contracted_percentile",
+                        "concurrency_at_contracted_percentile",
+                        "previous_concurrency_at_contracted_percentile",
+                        "limit_ratio",
+                        "previous_limit_ratio",
+                        "burst_budget_minutes",
+                        "burst_used_minutes",
+                        "burst_remaining_minutes",
+                        "burst_ratio",
+                        "previous_burst_used_minutes",
+                        "previous_burst_ratio",
+                        "cycle_start",
+                        "cycle_end"
+                      ],
+                      "type": "object",
+                      "description": "Set when an account's private-worker usage is running into its contract"
+                    }
+                  },
+                  "not": {
+                    "anyOf": [
+                      {"required": ["internal_error"]},
+                      {"required": ["run_updated"]},
+                      {"required": ["module_version"]}
                     ]
                   }
                 }
               }
+            ]
+          },
+          {
+            "anyOf": [
+              {"required": ["internal_error"]},
+              {"required": ["run_updated"]},
+              {"required": ["module_version"]},
+              {"required": ["worker_usage"]}
             ]
           }
         ],
@@ -653,24 +941,132 @@
       },
       "rules": {
         "properties": {
-          "channels": {
-            "description": "List of notification channels to use (email, slack, webhook, etc.)",
+          "flag": {
+            "$ref": "#/$defs/policy_flag"
+          },
+          "inbox": {
+            "description": "Notifications to place in the Spacelift inbox",
             "items": {
-              "type": "string"
+              "properties": {
+                "body": {
+                  "type": "string",
+                  "description": "A custom message body"
+                },
+                "severity": {
+                  "type": "string",
+                  "description": "Severity level for the message: INFO, WARNING or ERROR"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "A custom title for the message"
+                }
+              },
+              "type": "object"
             },
             "type": "array"
           },
-          "message": {
-            "description": "Custom message content for the notification",
-            "type": "string"
+          "pull_request": {
+            "description": "Comments to post on pull requests",
+            "items": {
+              "properties": {
+                "body": {
+                  "type": "string",
+                  "description": "A custom comment body"
+                },
+                "branch": {
+                  "type": "string",
+                  "description": "Target branch"
+                },
+                "commit": {
+                  "type": "string",
+                  "description": "Target commit SHA"
+                },
+                "deduplication_key": {
+                  "type": "string",
+                  "description": "Key used to update an existing comment instead of adding another"
+                },
+                "id": {
+                  "type": "integer",
+                  "description": "Pull request identifier"
+                },
+                "truncate_body": {
+                  "type": "boolean",
+                  "description": "Whether to truncate a comment body that exceeds the provider's limit"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
           },
-          "send": {
-            "description": "Whether to send the notification",
-            "type": "boolean"
+          "reset_flag": {
+            "$ref": "#/$defs/policy_reset_flag"
           },
-          "subject": {
-            "description": "Custom subject/title for the notification",
-            "type": "string"
+          "sample": {
+            "$ref": "#/$defs/policy_sample"
+          },
+          "slack": {
+            "description": "Messages to send to Slack channels",
+            "items": {
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The Slack channel the message is delivered to, taken from the bottom of the channel's About section"
+                },
+                "mention_groups": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Groups to mention in the default message"
+                },
+                "mention_users": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "description": "Users to mention in the default message"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A custom message to send instead of the default"
+                },
+                "thread_key": {
+                  "type": "string",
+                  "description": "Groups related messages into one Slack thread. The first message with a given key starts the thread and later ones reply to it"
+                }
+              },
+              "required": ["channel_id"],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "webhook": {
+            "description": "Payloads to deliver to webhook endpoints",
+            "items": {
+              "properties": {
+                "endpoint_id": {
+                  "type": "string",
+                  "description": "Slug of the endpoint the webhook is delivered to"
+                },
+                "headers": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "description": "Headers to append to the request"
+                },
+                "method": {
+                  "type": "string",
+                  "description": "HTTP method to send the request with"
+                },
+                "payload": {
+                  "description": "A custom JSON object to send as the request body"
+                }
+              },
+              "required": ["endpoint_id"],
+              "type": "object"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -681,19 +1077,65 @@
       "input": {
         "properties": {
           "ansible": {
-            "description": "Ansible plan data (for Ansible stacks)",
-            "type": ["object", "null"]
+            "description": "Ansible plan data, passed through as the vendor produced it",
+            "type": ["object", "null"],
+            "additionalProperties": true
           },
           "cloudformation": {
             "description": "CloudFormation plan data (for CloudFormation stacks)",
+            "properties": {
+              "changes": {
+                "description": "Changes from the CloudFormation change set",
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": ["array", "null"]
+              }
+            },
             "type": ["object", "null"]
           },
           "kubernetes": {
-            "description": "Kubernetes plan data (for Kubernetes stacks)",
+            "description": "Kubernetes plan data, passed through as the vendor produced it",
+            "type": ["object", "null"],
+            "additionalProperties": true
+          },
+          "opentofu": {
+            "description": "OpenTofu plan data (for OpenTofu stacks; also mirrored under terraform for backwards compatibility)",
+            "properties": {
+              "checks": {
+                "description": "Check block results from the plan",
+                "items": {
+                  "$ref": "#/$defs/plan_check"
+                },
+                "type": "array"
+              },
+              "opentofu_version": {
+                "description": "OpenTofu version that produced the plan",
+                "type": "string"
+              },
+              "resource_changes": {
+                "description": "Resource changes, as the vendor's plan JSON reports them",
+                "items": {
+                  "$ref": "#/$defs/plan_resource_change"
+                },
+                "type": ["array", "null"]
+              }
+            },
             "type": ["object", "null"]
           },
           "pulumi": {
             "description": "Pulumi plan data (for Pulumi stacks)",
+            "properties": {
+              "steps": {
+                "description": "Steps from the Pulumi preview",
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": ["array", "null"]
+              }
+            },
             "type": ["object", "null"]
           },
           "spacelift": {
@@ -716,8 +1158,14 @@
                     "description": "Previous run information (if applicable)"
                   },
                   "request": {
-                    "$ref": "#/$defs/request",
-                    "description": "Plan request details"
+                    "description": "Plan request details",
+                    "properties": {
+                      "timestamp_ns": {
+                        "$ref": "#/$defs/timestamp",
+                        "description": "Request timestamp"
+                      }
+                    },
+                    "type": "object"
                   },
                   "run": {
                     "$ref": "#/$defs/plan_run",
@@ -737,7 +1185,7 @@
                       }
                     },
                     "required": ["stack"],
-                        "type": "object"
+                    "type": "object"
                   },
                   {
                     "properties": {
@@ -747,7 +1195,7 @@
                       }
                     },
                     "required": ["module"],
-                        "type": "object"
+                    "type": "object"
                   }
                 ]
               }
@@ -755,16 +1203,72 @@
             "description": "Spacelift context with either stack or module"
           },
           "terraform": {
-            "description": "Terraform plan data (for Terraform stacks)",
+            "description": "Terraform plan data (for Terraform stacks; for OpenTofu stacks it mirrors opentofu for backwards compatibility)",
+            "properties": {
+              "checks": {
+                "description": "Check block results from the plan",
+                "items": {
+                  "$ref": "#/$defs/plan_check"
+                },
+                "type": "array"
+              },
+              "resource_changes": {
+                "description": "Resource changes, as the vendor's plan JSON reports them",
+                "items": {
+                  "$ref": "#/$defs/plan_resource_change"
+                },
+                "type": ["array", "null"]
+              },
+              "terraform_version": {
+                "description": "Terraform version that produced the plan",
+                "type": "string"
+              }
+            },
             "type": ["object", "null"]
           },
           "terragrunt": {
-            "description": "Terragrunt plan data (for Terragrunt stacks)",
+            "additionalProperties": {
+              "description": "Plan for one Terragrunt project",
+              "properties": {
+                "checks": {
+                  "description": "Check block results from the plan",
+                  "items": {
+                    "$ref": "#/$defs/plan_check"
+                  },
+                  "type": "array"
+                },
+                "resource_changes": {
+                  "description": "Resource changes, as the vendor's plan JSON reports them",
+                  "items": {
+                    "$ref": "#/$defs/plan_resource_change"
+                  },
+                  "type": ["array", "null"]
+                },
+                "terraform_version": {
+                  "description": "Terraform version that produced the plan",
+                  "type": "string"
+                }
+              },
+              "type": ["object", "null"]
+            },
+            "description": "Terragrunt plans, keyed by project",
             "type": ["object", "null"]
           },
           "third_party_metadata": {
             "description": "Third-party metadata (e.g., Infracost reports)",
-            "type": ["object", "null"]
+            "type": ["object", "null"],
+            "properties": {
+              "custom": {
+                "additionalProperties": true,
+                "description": "Custom plan policy inputs, keyed by the file that supplied them: a file named wiz.custom.spacelift.json lands under the key wiz. Contents are defined by that file, not by Spacelift",
+                "type": "object"
+              },
+              "infracost": {
+                "additionalProperties": true,
+                "description": "Infracost report, absent unless the run produced one. For Terragrunt it is keyed by project, for Terraform and OpenTofu it is the report itself. No other vendor emits it. Report contents are defined by Infracost, not by Spacelift",
+                "type": "object"
+              }
+            }
           }
         },
         "required": ["spacelift"],
@@ -778,6 +1282,15 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "flag": {
+            "$ref": "#/$defs/policy_flag"
+          },
+          "reset_flag": {
+            "$ref": "#/$defs/policy_reset_flag"
+          },
+          "sample": {
+            "$ref": "#/$defs/policy_sample"
           },
           "warn": {
             "description": "List of warnings about the plan",
@@ -812,7 +1325,8 @@
                   }
                 },
                 "required": ["command", "timestamp_ns"],
-                "type": "object"
+                "type": "object",
+                "description": "Details about the task request"
               },
               "session": {
                 "$ref": "#/$defs/session",
@@ -858,12 +1372,14 @@
             },
             "type": "array"
           },
-          "warn": {
-            "description": "List of warnings about the task",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
+          "flag": {
+            "$ref": "#/$defs/policy_flag"
+          },
+          "reset_flag": {
+            "$ref": "#/$defs/policy_reset_flag"
+          },
+          "sample": {
+            "$ref": "#/$defs/policy_sample"
           }
         },
         "type": "object"
@@ -921,6 +1437,7 @@
                     },
                     "type": {
                       "description": "Run type",
+                      "enum": ["PROPOSED", "TRACKED", "TASK", "TESTING", "DESTROY", "PARSE"],
                       "type": "string"
                     }
                   },
@@ -937,7 +1454,27 @@
           {
             "properties": {
               "module": {
-                "$ref": "#/$defs/module",
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/module"
+                  },
+                  {
+                    "properties": {
+                      "version": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/$defs/version"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The version this evaluation concerns"
+                      }
+                    },
+                    "type": "object"
+                  }
+                ],
                 "description": "The module that had a new version"
               },
               "stacks": {
@@ -970,15 +1507,22 @@
       },
       "rules": {
         "properties": {
-          "modules": {
-            "description": "List of module IDs that should be triggered",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
+          "flag": {
+            "$ref": "#/$defs/policy_flag"
           },
-          "stacks": {
-            "description": "List of stack IDs that should be triggered as a result of this run completion",
+          "priority": {
+            "description": "Priority level of every run this policy triggers on a private worker pool queue: high, normal or low. Policies that disagree about one stack leave its run at normal",
+            "type": "string",
+            "enum": ["high", "normal", "low"]
+          },
+          "reset_flag": {
+            "$ref": "#/$defs/policy_reset_flag"
+          },
+          "sample": {
+            "$ref": "#/$defs/policy_sample"
+          },
+          "trigger": {
+            "description": "List of stack IDs to trigger as a result of this run's completion",
             "items": {
               "type": "string"
             },
@@ -1039,11 +1583,13 @@
           "type": "string"
         },
         "request": {
-          "description": "Request metadata for the review",
+          "additionalProperties": true,
+          "description": "The request document as it stood when the review was recorded. Stored at the time, so its keys follow whichever version wrote it",
           "type": "object"
         },
         "session": {
-          "description": "Session metadata for the review",
+          "additionalProperties": true,
+          "description": "The session document as it stood when the review was recorded. Stored at the time, so its keys follow whichever version wrote it",
           "type": "object"
         }
       },
@@ -1065,10 +1611,6 @@
             "type": "string"
           },
           "type": "array"
-        },
-        "current_version": {
-          "description": "Current version string if applicable",
-          "type": ["string", "null"]
         },
         "id": {
           "description": "Module identifier",
@@ -1112,17 +1654,6 @@
           "description": "Terraform provider for the module",
           "type": "string"
         },
-        "version": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/version"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Version information if applicable"
-        },
         "worker_pool": {
           "anyOf": [
             {
@@ -1138,6 +1669,24 @@
       "required": ["administrative", "branch", "id", "name", "namespace", "project_root", "repository", "terraform_provider"],
       "type": "object"
     },
+    "policy_flag": {
+      "description": "Advanced: arbitrary strings to attach to this evaluation. Where the policy evaluates against a run, they appear on that run's policy receipt and are readable as run.flags by policies evaluated later for the same run.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "policy_reset_flag": {
+      "description": "Advanced: flags to clear. A flag is only cleared once every policy that set it has also requested the reset, so one policy cannot clear another's flag.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "policy_sample": {
+      "description": "Advanced: set to true to store this evaluation's input and result in the policy's evaluation records, where the policy workbench can replay it.",
+      "type": "boolean"
+    },
     "push": {
       "properties": {
         "affected_files": {
@@ -1147,6 +1696,10 @@
           },
           "type": "array"
         },
+        "affected_stacks_count": {
+          "description": "Stacks and modules on this repository, across all spaces of the account, whose project root or additional project globs match the affected files, including this one when it matches. Counted before any policy runs. It is the fan-out of the push, and the number of runs created can be lower.",
+          "type": "integer"
+        },
         "author": {
           "description": "Push author",
           "type": "string"
@@ -1154,6 +1707,30 @@
         "branch": {
           "description": "Git branch",
           "type": "string"
+        },
+        "commits": {
+          "description": "Individual commits batched into this push (e.g. by a merge queue), oldest first.",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/commit"
+              },
+              {
+                "properties": {
+                  "affected_files": {
+                    "description": "List of files affected by this individual commit",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": ["affected_files"],
+                "type": "object"
+              }
+            ]
+          },
+          "type": "array"
         },
         "created_at": {
           "$ref": "#/$defs/timestamp",
@@ -1172,7 +1749,7 @@
           "type": "string"
         }
       },
-      "required": ["affected_files", "author", "branch", "created_at", "hash", "message"],
+      "required": ["affected_files", "affected_stacks_count", "author", "branch", "created_at", "hash", "message"],
       "type": "object"
     },
     "request": {
@@ -1188,14 +1765,53 @@
       },
       "type": "object"
     },
+    "run_trigger": {
+      "properties": {
+        "run": {
+          "description": "The triggering run",
+          "properties": {
+            "id": {
+              "description": "Run identifier",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "stack": {
+          "anyOf": [
+            {
+              "properties": {
+                "id": {
+                  "description": "Stack identifier (slug)",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The stack the triggering run ran on"
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/run_trigger"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The run that triggered the triggering run"
+        }
+      },
+      "type": "object"
+    },
     "session": {
       "properties": {
-        "account_name": {
-          "description": "Account name for machine sessions",
-          "type": ["string", "null"]
-        },
         "admin": {
-          "description": "Whether the session has admin privileges",
+          "description": "Whether the session has admin privileges. Absent from a login policy input, where an IdP admin does not reach the policy. An empty string on a run whose creator was a machine",
           "type": ["boolean", "string"]
         },
         "creator_ip": {
@@ -1203,7 +1819,7 @@
           "type": "string"
         },
         "idp_subject": {
-          "description": "Subject (sub) claim from the upstream IdP token, present for SSO and OIDC API key sessions",
+          "description": "Subject (sub) claim from the identity provider that authenticated the session. Empty only for a secret-based API key",
           "type": "string"
         },
         "login": {
@@ -1211,11 +1827,7 @@
           "type": "string"
         },
         "machine": {
-          "description": "Whether this is a machine session",
-          "type": "boolean"
-        },
-        "member": {
-          "description": "Whether the user is a member of the account",
+          "description": "Whether the session belongs to a machine rather than a person. Always false in a login policy input",
           "type": "boolean"
         },
         "name": {
@@ -1223,7 +1835,7 @@
           "type": "string"
         },
         "stack_id": {
-          "description": "Stack ID for machine sessions",
+          "description": "Slug of the stack whose run holds this session. Present only for a session Spacelift issued to a run, which a login policy never receives",
           "type": ["string", "null"]
         },
         "teams": {
@@ -1240,7 +1852,17 @@
     "slack": {
       "properties": {
         "channel": {
-          "description": "Slack channel information",
+          "description": "Slack channel the command came from",
+          "properties": {
+            "id": {
+              "description": "Slack channel identifier",
+              "type": "string"
+            },
+            "name": {
+              "description": "Slack channel name",
+              "type": "string"
+            }
+          },
           "type": "object"
         },
         "command": {
@@ -1248,11 +1870,104 @@
           "type": "string"
         },
         "team": {
-          "description": "Slack team information",
+          "description": "Slack workspace the user belongs to",
+          "properties": {
+            "id": {
+              "description": "Slack team identifier",
+              "type": "string"
+            },
+            "name": {
+              "description": "Slack team name",
+              "type": "string"
+            }
+          },
           "type": "object"
         },
         "user": {
-          "description": "Slack user information",
+          "description": "Slack user who ran the command",
+          "properties": {
+            "deleted": {
+              "description": "Whether the Slack account is deleted",
+              "type": "boolean"
+            },
+            "display_name": {
+              "description": "Display name from the user's Slack profile",
+              "type": "string"
+            },
+            "enterprise": {
+              "description": "Slack Enterprise Grid membership, zero valued outside an Enterprise workspace",
+              "properties": {
+                "enterprise_id": {
+                  "description": "Enterprise Grid organisation identifier",
+                  "type": "string"
+                },
+                "enterprise_name": {
+                  "description": "Enterprise Grid organisation name",
+                  "type": "string"
+                },
+                "id": {
+                  "description": "Identifier of the user within the Enterprise Grid organisation",
+                  "type": "string"
+                },
+                "is_admin": {
+                  "description": "Whether the user administers the Enterprise Grid organisation",
+                  "type": "boolean"
+                },
+                "is_owner": {
+                  "description": "Whether the user owns the Enterprise Grid organisation",
+                  "type": "boolean"
+                },
+                "teams": {
+                  "description": "Workspaces within the organisation that the user belongs to",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": ["array", "null"]
+                }
+              },
+              "type": "object"
+            },
+            "has_2fa": {
+              "description": "Whether the user has two factor authentication enabled",
+              "type": "boolean"
+            },
+            "id": {
+              "description": "Slack user identifier",
+              "type": "string"
+            },
+            "is_admin": {
+              "description": "Whether the user administers the workspace",
+              "type": "boolean"
+            },
+            "is_owner": {
+              "description": "Whether the user owns the workspace",
+              "type": "boolean"
+            },
+            "is_primary_owner": {
+              "description": "Whether the user is the workspace's primary owner",
+              "type": "boolean"
+            },
+            "is_restricted": {
+              "description": "Whether the user is a multi-channel guest",
+              "type": "boolean"
+            },
+            "is_stranger": {
+              "description": "Whether the user belongs to no shared workspace",
+              "type": "boolean"
+            },
+            "is_ultra_restricted": {
+              "description": "Whether the user is a single-channel guest",
+              "type": "boolean"
+            },
+            "real_name": {
+              "description": "The user's real name as Slack holds it",
+              "type": "string"
+            },
+            "tz": {
+              "description": "The user's Slack timezone",
+              "type": "string"
+            }
+          },
           "type": "object"
         }
       },
@@ -1339,6 +2054,13 @@
           "description": "Repository name",
           "type": "string"
         },
+        "roles": {
+          "description": "Spacelift roles granted on this stack",
+          "items": {
+            "$ref": "#/$defs/role"
+          },
+          "type": "array"
+        },
         "space": {
           "anyOf": [
             {
@@ -1355,11 +2077,11 @@
           "type": "string"
         },
         "terraform_version": {
-          "description": "Terraform version used by the stack",
+          "description": "Terraform version used by the stack (Terraform stacks only, null for other vendors)",
           "type": ["string", "null"]
         },
         "terraform_workflow_tool": {
-          "description": "Terraform workflow tool",
+          "description": "Terraform workflow tool (Terraform stacks only, null for other vendors)",
           "type": ["string", "null"]
         },
         "tracked_commit": {
@@ -1421,6 +2143,29 @@
         "test_runs": {
           "description": "Test runs for this version",
           "items": {
+            "description": "One test run for the version",
+            "properties": {
+              "created_at": {
+                "description": "Creation Unix timestamp in nanoseconds",
+                "type": "integer"
+              },
+              "id": {
+                "description": "Run identifier",
+                "type": "string"
+              },
+              "state": {
+                "description": "Current run state",
+                "type": "string"
+              },
+              "title": {
+                "description": "Run title",
+                "type": "string"
+              },
+              "updated_at": {
+                "description": "Last update Unix timestamp in nanoseconds",
+                "type": "integer"
+              }
+            },
             "type": "object"
           },
           "type": "array"
@@ -1432,16 +2177,16 @@
     "worker_pool": {
       "properties": {
         "id": {
-          "description": "Worker pool identifier (null for public pool)",
-          "type": ["string", "null"]
+          "description": "Worker pool identifier. Absent for the public pool rather than null",
+          "type": "string"
         },
         "labels": {
-          "description": "Worker pool labels (null for public pool)",
-          "type": ["array", "null"]
+          "description": "Worker pool labels. Absent for the public pool rather than null",
+          "type": "array"
         },
         "name": {
-          "description": "Worker pool name (null for public pool)",
-          "type": ["string", "null"]
+          "description": "Worker pool name. Absent for the public pool rather than null",
+          "type": "string"
         },
         "public": {
           "description": "Whether this is the public worker pool",
@@ -1552,6 +2297,10 @@
           "description": "PR action type",
           "type": "string"
         },
+        "affected_stacks_count": {
+          "description": "Stacks and modules on this repository, across all spaces of the account, whose project root or additional project globs match the pull request's changed files, including this one when it matches. Counted before any policy runs. It is the fan-out of the event, and the number of runs created can be lower.",
+          "type": "integer"
+        },
         "author": {
           "description": "PR author",
           "type": "string"
@@ -1611,11 +2360,11 @@
           "type": "boolean"
         },
         "comment": {
-          "description": "PR comment if applicable",
-          "type": ["string", "object", "null"]
+          "description": "Pull request comment, present only when the event carries one",
+          "type": "string"
         }
       },
-      "required": ["action", "author", "base", "closed", "diff", "draft", "head", "id", "labels", "title"],
+      "required": ["action", "affected_stacks_count", "author", "base", "closed", "diff", "draft", "head", "id", "labels", "title"],
       "type": "object"
     },
     "runtime_config": {
@@ -1705,8 +2454,9 @@
           "type": ["array", "null"]
         },
         "environment": {
-          "description": "Environment variables",
-          "type": "object"
+          "description": "Environment variables for the run. Names are chosen by the account, not by Spacelift",
+          "type": "object",
+          "additionalProperties": true
         },
         "project_root": {
           "description": "Project root directory",
@@ -1717,8 +2467,8 @@
           "type": "string"
         },
         "terraform_version": {
-          "description": "Terraform version",
-          "type": "string"
+          "description": "Terraform version used by the run (Terraform stacks only, null for other vendors)",
+          "type": ["string", "null"]
         }
       },
       "required": ["environment", "project_root", "runner_image", "terraform_version"],
@@ -1731,7 +2481,8 @@
           "type": "string"
         },
         "action": {
-          "description": "Type of change action",
+          "description": "Type of change. A replaced resource has one change, destroy-Before-create-replaced or create-Before-destroy-replaced.",
+          "enum": ["added", "changed", "deleted", "no-op", "read", "destroy-Before-create-replaced", "create-Before-destroy-replaced", "import", "forget", "create-after-forgotten", "ok", "skipped", "rescued", "ignored", "unreachable", "failed", "open", "renew", "close"],
           "type": "string"
         },
         "moved": {
@@ -1739,8 +2490,8 @@
           "type": "boolean"
         },
         "entity": {
-          "description": "Entity data",
-          "type": "object"
+          "$ref": "#/$defs/entity",
+          "description": "The entity the change applies to"
         }
       },
       "required": ["phase", "action", "entity"],
@@ -1759,12 +2510,22 @@
           },
           "type": ["array", "null"]
         },
+        "identity": {
+          "$ref": "#/$defs/identity",
+          "description": "Resolved identity of the reviewer, present when one resolves"
+        },
+        "note": {
+          "description": "Note the reviewer left with the review, empty when they left none",
+          "type": "string"
+        },
         "request": {
-          "description": "Request data for the approval event",
+          "additionalProperties": true,
+          "description": "The request document as it stood when the review was recorded. Stored at the time, so its keys follow whichever version wrote it",
           "type": "object"
         },
         "session": {
-          "description": "Session data for the approval event",
+          "additionalProperties": true,
+          "description": "The session document as it stood when the review was recorded. Stored at the time, so its keys follow whichever version wrote it",
           "type": "object"
         },
         "state": {
@@ -1791,7 +2552,7 @@
         },
         "outcome": {
           "description": "Policy execution outcome",
-          "type": "object"
+          "type": "string"
         },
         "flags": {
           "description": "Policy flags",
@@ -1821,99 +2582,6 @@
           "type": "array"
         }
       },
-      "type": "object"
-    },
-    "run": {
-      "properties": {
-        "based_on_local_workspace": {
-          "description": "Whether the run is based on local workspace",
-          "type": "boolean"
-        },
-        "branch": {
-          "description": "Git branch for the run",
-          "type": "string"
-        },
-        "changes": {
-          "description": "Entity changes for the run",
-          "items": {
-            "$ref": "#/$defs/entity_change"
-          },
-          "type": "array"
-        },
-        "command": {
-          "description": "Command executed for the run",
-          "type": ["string", "null"]
-        },
-        "commit": {
-          "$ref": "#/$defs/commit",
-          "description": "Git commit for the run"
-        },
-        "created_at": {
-          "$ref": "#/$defs/timestamp",
-          "description": "Run creation timestamp"
-        },
-        "creator_session": {
-          "$ref": "#/$defs/session",
-          "description": "Session that created the run"
-        },
-        "drift_detection": {
-          "description": "Whether this is a drift detection run",
-          "type": "boolean"
-        },
-        "flags": {
-          "description": "Feature flags enabled for the run",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "id": {
-          "description": "Run identifier",
-          "type": "string"
-        },
-        "runtime_config": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/runtime_config"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Runtime configuration for the run"
-        },
-        "state": {
-          "description": "Current run state",
-          "type": "string"
-        },
-        "states_history": {
-          "description": "History of state transitions",
-          "items": {
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "triggered_by": {
-          "description": "Who or what triggered the run",
-          "type": ["string", "null"]
-        },
-        "type": {
-          "description": "Run type (TRACKED, PROPOSED, etc.)",
-          "type": "string"
-        },
-        "updated_at": {
-          "$ref": "#/$defs/timestamp",
-          "description": "Last update timestamp"
-        },
-        "user_provided_metadata": {
-          "description": "User-provided metadata for the run",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": ["created_at", "id", "state", "triggered_by", "type", "updated_at"],
       "type": "object"
     },
     "approval_run": {
@@ -1946,7 +2614,20 @@
           "description": "Run creation timestamp"
         },
         "creator_session": {
-          "$ref": "#/$defs/session",
+          "allOf": [
+            {
+              "$ref": "#/$defs/session"
+            },
+            {
+              "properties": {
+                "identity": {
+                  "$ref": "#/$defs/identity",
+                  "description": "Resolved identity of the person who created the run, present when one resolves"
+                }
+              },
+              "type": "object"
+            }
+          ],
           "description": "Session that created the run"
         },
         "drift_detection": {
@@ -1954,11 +2635,16 @@
           "type": "boolean"
         },
         "flags": {
-          "description": "Feature flags enabled for the run",
+          "description": "Flags set on this run by the flag rule of policies evaluated earlier for it",
           "items": {
             "type": "string"
           },
           "type": "array"
+        },
+        "force_apply_mode": {
+          "description": "Whether the apply phase is forced despite a zero-change plan",
+          "enum": ["DISABLED", "SINGLE", "CASCADE"],
+          "type": "string"
         },
         "id": {
           "description": "Run identifier",
@@ -1983,12 +2669,24 @@
           "description": "Current run state",
           "type": "string"
         },
+        "trigger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/run_trigger"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The run that triggered this one, if any"
+        },
         "triggered_by": {
           "description": "Who or what triggered the run",
           "type": ["string", "null"]
         },
         "type": {
-          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "description": "Run type",
+          "enum": ["PROPOSED", "TRACKED", "TASK", "TESTING", "DESTROY", "PARSE"],
           "type": "string"
         },
         "updated_at": {
@@ -2036,7 +2734,20 @@
           "description": "Run creation timestamp"
         },
         "creator_session": {
-          "$ref": "#/$defs/session",
+          "allOf": [
+            {
+              "$ref": "#/$defs/session"
+            },
+            {
+              "properties": {
+                "identity": {
+                  "$ref": "#/$defs/identity",
+                  "description": "Resolved identity of the person who created the run, present when one resolves"
+                }
+              },
+              "type": "object"
+            }
+          ],
           "description": "Session that created the run"
         },
         "drift_detection": {
@@ -2044,15 +2755,24 @@
           "type": "boolean"
         },
         "flags": {
-          "description": "Feature flags enabled for the run",
+          "description": "Flags set on this run by the flag rule of policies evaluated earlier for it",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
+        "force_apply_mode": {
+          "description": "Whether the apply phase is forced despite a zero-change plan",
+          "enum": ["DISABLED", "SINGLE", "CASCADE"],
+          "type": "string"
+        },
         "id": {
           "description": "Run identifier",
           "type": "string"
+        },
+        "promoted": {
+          "description": "Whether the run was promoted from a proposed run",
+          "type": "boolean"
         },
         "runtime_config": {
           "anyOf": [
@@ -2069,12 +2789,24 @@
           "description": "Current run state",
           "type": "string"
         },
+        "trigger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/run_trigger"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The run that triggered this one, if any"
+        },
         "triggered_by": {
           "description": "Who or what triggered the run",
           "type": ["string", "null"]
         },
         "type": {
-          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "description": "Run type",
+          "enum": ["PROPOSED", "TRACKED", "TASK", "TESTING", "DESTROY", "PARSE"],
           "type": "string"
         },
         "updated_at": {
@@ -2114,7 +2846,20 @@
           "type": ["string", "null"]
         },
         "commit": {
-          "$ref": "#/$defs/commit",
+          "allOf": [
+            {
+              "$ref": "#/$defs/commit"
+            },
+            {
+              "properties": {
+                "author_identity": {
+                  "$ref": "#/$defs/identity",
+                  "description": "Resolved identity of the commit author, present when one resolves"
+                }
+              },
+              "type": "object"
+            }
+          ],
           "description": "Git commit for the run"
         },
         "created_at": {
@@ -2122,7 +2867,20 @@
           "description": "Run creation timestamp"
         },
         "creator_session": {
-          "$ref": "#/$defs/session",
+          "allOf": [
+            {
+              "$ref": "#/$defs/session"
+            },
+            {
+              "properties": {
+                "identity": {
+                  "$ref": "#/$defs/identity",
+                  "description": "Resolved identity of the person who created the run, present when one resolves"
+                }
+              },
+              "type": "object"
+            }
+          ],
           "description": "Session that created the run"
         },
         "drift_detection": {
@@ -2130,15 +2888,24 @@
           "type": "boolean"
         },
         "flags": {
-          "description": "Feature flags enabled for the run",
+          "description": "Flags set on this run by the flag rule of policies evaluated earlier for it",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
+        "force_apply_mode": {
+          "description": "Whether the apply phase is forced despite a zero-change plan",
+          "enum": ["DISABLED", "SINGLE", "CASCADE"],
+          "type": "string"
+        },
         "id": {
           "description": "Run identifier",
           "type": "string"
+        },
+        "promoted": {
+          "description": "Whether the run was promoted from a proposed run",
+          "type": "boolean"
         },
         "runtime_config": {
           "anyOf": [
@@ -2158,16 +2925,28 @@
         "states_history": {
           "description": "History of state transitions",
           "items": {
-            "type": "object"
+            "$ref": "#/$defs/state_transition"
           },
           "type": "array"
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/run_trigger"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The run that triggered this one, if any"
         },
         "triggered_by": {
           "description": "Who or what triggered the run",
           "type": ["string", "null"]
         },
         "type": {
-          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "description": "Run type",
+          "enum": ["PROPOSED", "TRACKED", "TASK", "TESTING", "DESTROY", "PARSE"],
           "type": "string"
         },
         "updated_at": {
@@ -2215,7 +2994,20 @@
           "description": "Run creation timestamp"
         },
         "creator_session": {
-          "$ref": "#/$defs/session",
+          "allOf": [
+            {
+              "$ref": "#/$defs/session"
+            },
+            {
+              "properties": {
+                "identity": {
+                  "$ref": "#/$defs/identity",
+                  "description": "Resolved identity of the person who created the run, present when one resolves"
+                }
+              },
+              "type": "object"
+            }
+          ],
           "description": "Session that created the run"
         },
         "drift_detection": {
@@ -2223,15 +3015,28 @@
           "type": "boolean"
         },
         "flags": {
-          "description": "Feature flags enabled for the run",
+          "description": "Flags set on this run by the flag rule of policies evaluated earlier for it",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
+        "force_apply_mode": {
+          "description": "Whether the apply phase is forced despite a zero-change plan",
+          "enum": ["DISABLED", "SINGLE", "CASCADE"],
+          "type": "string"
+        },
         "id": {
           "description": "Run identifier",
           "type": "string"
+        },
+        "priority": {
+          "description": "Tier the run was queued in, one of high, normal or low",
+          "type": "string"
+        },
+        "promoted": {
+          "description": "Whether the run was promoted from a proposed run",
+          "type": "boolean"
         },
         "runtime_config": {
           "anyOf": [
@@ -2252,16 +3057,28 @@
         "states_history": {
           "description": "History of state transitions",
           "items": {
-            "type": "object"
+            "$ref": "#/$defs/state_transition"
           },
           "type": "array"
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/run_trigger"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The run that triggered this one, if any"
         },
         "triggered_by": {
           "description": "Who or what triggered the run",
           "type": ["string", "null"]
         },
         "type": {
-          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "description": "Run type",
+          "enum": ["PROPOSED", "TRACKED", "TASK", "TESTING", "DESTROY", "PARSE"],
           "type": "string"
         },
         "updated_at": {
@@ -2276,7 +3093,7 @@
           "type": "array"
         }
       },
-      "required": ["created_at", "id", "state", "triggered_by", "type", "updated_at"],
+      "required": ["created_at", "id", "priority", "state", "triggered_by", "type", "updated_at"],
       "type": "object"
     },
     "push_in_progress_run": {
@@ -2305,6 +3122,11 @@
           "description": "Whether this is a drift detection run",
           "type": "boolean"
         },
+        "force_apply_mode": {
+          "description": "Whether the apply phase is forced despite a zero-change plan",
+          "enum": ["DISABLED", "SINGLE", "CASCADE"],
+          "type": "string"
+        },
         "id": {
           "description": "Run identifier",
           "type": "string"
@@ -2313,12 +3135,24 @@
           "description": "Current run state",
           "type": "string"
         },
+        "trigger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/run_trigger"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The run that triggered this one, if any"
+        },
         "triggered_by": {
           "description": "Who or what triggered the run",
           "type": ["string", "null"]
         },
         "type": {
-          "description": "Run type (TRACKED, PROPOSED, etc.)",
+          "description": "Run type",
+          "enum": ["PROPOSED", "TRACKED", "TASK", "TESTING", "DESTROY", "PARSE"],
           "type": "string"
         },
         "updated_at": {
@@ -2334,6 +3168,240 @@
         }
       },
       "required": ["created_at", "id", "state", "triggered_by", "type", "updated_at"],
+      "type": "object"
+    },
+    "entity": {
+      "description": "One resource, output, stack, module or Ansible task in a plan or apply",
+      "properties": {
+        "address": {
+          "description": "Address of the entity",
+          "type": "string"
+        },
+        "data": {
+          "description": "Vendor specific detail. Which keys are present depends on entity_vendor and entity_type",
+          "properties": {
+            "address": {
+              "description": "Terraform resource address",
+              "type": "string"
+            },
+            "id": {
+              "description": "Pulumi resource identifier",
+              "type": "string"
+            },
+            "logical_resource_id": {
+              "description": "CloudFormation logical resource identifier",
+              "type": "string"
+            },
+            "mode": {
+              "description": "Terraform resource mode",
+              "type": "string"
+            },
+            "module": {
+              "description": "Terraform module the resource belongs to",
+              "type": "string"
+            },
+            "outputs": {
+              "additionalProperties": true,
+              "description": "Pulumi resource outputs. Keys are defined by the resource, not by Spacelift",
+              "type": "object"
+            },
+            "outputs_hash": {
+              "description": "Hash of the Pulumi resource outputs",
+              "type": "integer"
+            },
+            "parent": {
+              "description": "Pulumi parent resource",
+              "type": "string"
+            },
+            "physical_resource_id": {
+              "description": "CloudFormation physical resource identifier",
+              "type": "string"
+            },
+            "provider": {
+              "description": "Provider that manages the resource",
+              "type": "string"
+            },
+            "sensitive": {
+              "description": "Whether the output is sensitive",
+              "type": "boolean"
+            },
+            "tainted": {
+              "description": "Whether Terraform marked the resource tainted",
+              "type": "boolean"
+            },
+            "template": {
+              "description": "CloudFormation template describing the resource"
+            },
+            "urn": {
+              "description": "Pulumi resource URN",
+              "type": "string"
+            },
+            "value": {
+              "description": "Output value, empty when the output holds no value",
+              "type": "string"
+            },
+            "value_hash": {
+              "description": "Hash of the output value",
+              "type": "integer"
+            },
+            "values": {
+              "additionalProperties": true,
+              "description": "Terraform resource attributes. Keys are defined by the resource's provider, not by Spacelift",
+              "type": "object"
+            },
+            "values_hash": {
+              "description": "Hash of the Terraform resource attributes",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "entity_type": {
+          "description": "What kind of entity this is: resource, output, stack or module",
+          "type": "string"
+        },
+        "entity_vendor": {
+          "description": "Which vendor produced the entity: terraform, opentofu, pulumi or cloudformation. Legacy OpenTofu stacks (Terraform vendor with the OPEN_TOFU workflow tool) report terraform",
+          "type": "string"
+        },
+        "host_name": {
+          "description": "Ansible host the task ran against",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the entity",
+          "type": "string"
+        },
+        "playbook_name": {
+          "description": "Ansible playbook the task belongs to",
+          "type": "string"
+        },
+        "role_name": {
+          "description": "Ansible role the task belongs to, empty when it has none",
+          "type": "string"
+        },
+        "task_action": {
+          "description": "Ansible task action",
+          "type": "string"
+        },
+        "task_name": {
+          "description": "Ansible task name",
+          "type": "string"
+        },
+        "type": {
+          "description": "Type of the entity as the vendor reports it",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "identity": {
+      "description": "A resolved Spacelift identity for the person who acted",
+      "properties": {
+        "federations": {
+          "additionalProperties": {
+            "properties": {
+              "id": {
+                "description": "The person's external identifier for this provider",
+                "type": "string"
+              },
+              "username": {
+                "description": "The person's external username for this provider, when the provider reports one",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "description": "External accounts linked to this identity, keyed by provider",
+          "type": "object"
+        },
+        "ulid": {
+          "description": "Opaque reference to the identity",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "plan_resource_change": {
+      "additionalProperties": true,
+      "properties": {
+        "address": {
+          "description": "Absolute resource address",
+          "type": "string"
+        },
+        "change": {
+          "additionalProperties": true,
+          "description": "The change Terraform plans for this resource",
+          "properties": {
+            "actions": {
+              "description": "One or more of no-op, create, read, update, delete",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "after": {
+              "additionalProperties": true,
+              "description": "Attributes after the change, null when the action is delete. Keys are defined by the resource's provider, not by Spacelift",
+              "type": ["object", "null"]
+            },
+            "after_unknown": {
+              "additionalProperties": true,
+              "description": "Attributes whose values are not known until apply. Keys are provider-defined",
+              "type": "object"
+            },
+            "before": {
+              "additionalProperties": true,
+              "description": "Attributes before the change, null when the action is create. Keys are defined by the resource's provider, not by Spacelift",
+              "type": ["object", "null"]
+            }
+          },
+          "type": "object"
+        },
+        "mode": {
+          "description": "Either managed or data",
+          "type": "string"
+        },
+        "module_address": {
+          "description": "Address of the module containing the resource",
+          "type": "string"
+        },
+        "name": {
+          "description": "Resource name within its module",
+          "type": "string"
+        },
+        "provider_name": {
+          "description": "Provider that manages the resource",
+          "type": "string"
+        },
+        "type": {
+          "description": "Resource type, for example aws_iam_user",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "plan_check": {
+      "additionalProperties": true,
+      "description": "One check block result, as the vendor's plan JSON reports it. The vendor controls its keys",
+      "type": "object"
+    },
+    "state_transition": {
+      "description": "One state a run passed through",
+      "properties": {
+        "new_state": {
+          "description": "The state the run moved into",
+          "type": "string"
+        },
+        "note": {
+          "description": "Note recorded with the transition, present only when one was given",
+          "type": "string"
+        },
+        "username": {
+          "description": "Person who caused the transition, present only when a person did",
+          "type": "string"
+        }
+      },
       "type": "object"
     }
   }

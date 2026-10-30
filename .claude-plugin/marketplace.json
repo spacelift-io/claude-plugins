@@ -11,7 +11,7 @@
       "name": "spacelift",
       "source": "./plugins/spacelift",
       "description": "Procedural guide and references for working with Spacelift via the spacelift-local MCP - manage stacks, runs, policies, spaces, integrations, and the lifecycle of cloud resources through Intent (OpenTofu/Terraform).",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "category": "infrastructure",
       "tags": [
         "spacelift",

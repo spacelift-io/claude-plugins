@@ -2,7 +2,7 @@
 
 **Goal:** a PLAN policy that denies pure destroys on production stacks, warns on destroys elsewhere, and always warns (never blocks) on replacements - verified under both Rego engines without deploying anything.
 
-This walks through portable authoring → synthesized input → `policySimulatev2` under both engines. Simulation is server-side and persists nothing.
+This walks through portable authoring → synthesized input → `policy_simulate` under both engines. Simulation is server-side and persists nothing.
 
 ## Step 1 - write the policy in the portable pattern
 
@@ -53,7 +53,7 @@ is_replacement(rc) if {
 
 ## Step 2 - synthesize a sample input
 
-From `references/policy-contract.md` (PLAN): only the fields the policy touches, with the PLAN-specific nesting (`input.spacelift.*` for stack/run, `input.terraform.*` for the plan). A production stack (label `env:production`) with three resource changes: a pure destroy, a replacement, and an in-place update.
+From `policy_input_schema` for PLAN (or `references/policy-contract.md`): only the fields the policy touches, with the PLAN-specific nesting (`input.spacelift.*` for stack/run, `input.terraform.*` for the plan). A production stack (label `env:production`) with three resource changes: a pure destroy, a replacement, and an in-place update.
 
 ```json
 {
@@ -83,12 +83,12 @@ From `references/policy-contract.md` (PLAN): only the fields the policy touches,
 
 ## Step 3 - simulate under both engines
 
-Run the `policySimulatev2` mutation via the Spacelift MCP `mutate` tool with input object `{ body, input, type: "PLAN", engineType }`, where `engineType` is the `PolicyEngineType` enum: `REGO_V0` or `REGO_V1`. Same policy logic + same input across all four cells, verified live against Spacelift's GraphQL API:
+Call the Spacelift MCP `policy_simulate` tool with `{ type: "PLAN", body, input, engineType }`, once with `engineType: "REGO_V0"` and once with `"REGO_V1"` (the default). Same policy logic + same input across all four cells:
 
 | Policy syntax | `REGO_V0` | `REGO_V1` |
 |---|---|---|
 | Classic v0 (`deny[reason] { ... }`, bare helpers) | Passes (1 deny + 1 warn) | Parse error - "`if` keyword is required before rule body", "`contains` keyword is required for partial set rules", "`if` keyword is required before function body" (one per rule/function head) |
-| Portable (`future.keywords` + `contains ... if`) | Passes (1 deny + 1 warn) | Passes (1 deny + 1 warn) - byte-identical result to the `REGO_V0` cell |
+| Portable (`future.keywords` + `contains ... if`) | Passes (1 deny + 1 warn) | Passes (1 deny + 1 warn) - same decision as the `REGO_V0` cell |
 
 Re-run this matrix as a regression check whenever the skill's syntax guidance changes.
 
@@ -99,6 +99,7 @@ Expected decision on this input (production stack):
 - `deny` - 1 element: `"aws_s3_bucket.logs would be destroyed in a production stack"`
 - `warn` - 1 element: `"aws_db_instance.main will be replaced (destroy + recreate)"`
 - `aws_instance.web` (update) matches nothing - no output.
+- `flag` and `reset_flag` come back empty and `sample` false, because the library declares them for every PLAN policy.
 
 ## Step 5 - exercise the non-production path
 
@@ -107,7 +108,7 @@ Remove the `env:production` label and re-simulate: the destroy moves from `deny`
 ## Why this shape
 
 - **Portable by default** - one policy body runs under both engines; no per-engine forks to maintain.
-- **Simulate before deploy** - `policySimulatev2` evaluates server-side and persists nothing; parse errors come back per rule head.
+- **Simulate before deploy** - `policy_simulate` evaluates server-side and persists nothing; parse errors come back per rule head.
 - **Both engines exercised** - a portable policy is only proven portable when `REGO_V0` and `REGO_V1` return identical decisions.
 - **Input is minimal** - only fields the policy touches, with correct PLAN nesting; a full plan JSON adds nothing but tokens.
 - **Deny vs warn split** - hard-block only what must never happen (production destroys); annotate the rest so runs keep flowing.
