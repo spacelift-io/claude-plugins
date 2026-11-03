@@ -8,29 +8,43 @@
 
 ## Rule type per policy
 
-The rule output shape depends on the policy type - using the wrong one silently does nothing:
+Spacelift wraps every policy in a per-type library that declares each rule it reads. A rule with a readable name but the wrong shape fails to compile ("conflicting rules data.spacelift.deny found"). A rule name the type does not read compiles and is silently ignored.
 
-| Policy types | Rule shape |
-|---|---|
-| ACCESS, APPROVAL, GIT_PUSH | booleans (`allow`, `deny`, `approve`, `reject`, `track`, `propose`, `ignore`) |
-| PLAN, TASK | sets of reason strings (`deny[reason]`, `warn[reason]`) |
-| TRIGGER | sets of IDs (`stacks[id]`, `modules[id]`) |
-| LOGIN | mix: `allow`/`admin`/`deny` bools; `space_read`/`space_write`/`space_admin`/`teams` sets; `roles` map (space slug → list of role slugs) |
-| NOTIFICATION | `send` bool; `channels` set; `message`/`subject` strings |
+| Policy type | Booleans (`rule if { ... }`) | Sets (`rule contains x if { ... }`) | Other |
+|---|---|---|---|
+| ACCESS | `deny`, `deny_write`, `read`, `write` | | |
+| APPROVAL | `approve`, `reject` | `approve_with_note`, `reject_with_note` (notes) | |
+| GIT_PUSH | `track`, `propose`, `ignore`, `ignore_track`, `notrigger`, `fail`, `notify`, `allow_fork`, `prioritize` | `cancel` (run IDs), `message`, `external_dependency` | `lock`, `unlock`, `module_version`, `priority` (strings) |
+| INTENT | | `allow`, `deny` (reasons) | |
+| LOGIN | `allow`, `admin`, `deny`, `deny_admin` | `team`, `deny_message` | `roles` map (space ID → set of role slugs) |
+| NOTIFICATION | | `webhook`, `slack`, `inbox`, `pull_request` (objects) | |
+| PLAN | | `deny`, `warn` (reasons) | |
+| TASK | | `deny` (reasons) | |
+| TRIGGER | | `trigger` (stack IDs) | `priority` (string) |
+| every type | `sample` | `flag`, `reset_flag` | |
 
-## Null-guard pattern
+## Missing and null fields
 
-`teams`, `labels`, `worker_pool`, `push` (on PR events), and `pull_request` (on push events) can be null. Iterating or calling `count()` on null errors.
+Only the fields the contract marks required are always present. Any other field can be missing, and several can be null: `teams`, `labels`, `worker_pool`, `pull_request` on push events, `policy_receipts`. An expression over a missing or null value is undefined, so the rule body fails and the rule does not fire. It does not error.
+
+When not firing is the safe outcome, write no guard. When a rule must fire on absence, test it with `not` on a helper, because `count()` over null is undefined too:
 
 ```rego
-# Safe - works even if teams is null
-has_team(team) {
-    input.session.teams[_] == team
-}
+package spacelift
 
-# Unsafe - errors if teams is null
-bad_check {
-    count(input.session.teams) > 0
+import future.keywords.if
+import future.keywords.in
+
+# LOGIN, GitHub or GitLab only: Google and Microsoft send no teams, so this would deny everyone there
+
+# Undefined when teams is null, so this never denies that user
+deny if count(input.session.teams) == 0
+
+# Fires for null, missing and empty teams alike
+deny if not has_any_team
+
+has_any_team if {
+    some _ in input.session.teams
 }
 ```
 
@@ -39,23 +53,29 @@ bad_check {
 Break complex logic into named helpers so intention is clear:
 
 ```rego
-deny[reason] {
+deny contains reason if {
     is_production_stack
     has_destructive_changes
     reason := "Cannot destroy resources in production"
 }
 
-is_production_stack {
+is_production_stack if {
     input.spacelift.stack.labels[_] == "env:production"
 }
+
+has_destructive_changes if {
+    count(deleted_resources) > 0
+}
 ```
+
+The PLAN library already defines `affected_resources`, `created_resources`, `deleted_resources`, `recreated_resources` and `updated_resources` over `input.terraform.resource_changes`. Use them directly, as `has_destructive_changes` does above, and do not give your own rules those names.
 
 ## Reason strings
 
 `deny`/`warn` reasons show up in the Spacelift UI. Use `sprintf` for dynamic context:
 
 ```rego
-deny[reason] {
+deny contains reason if {
     rc := input.terraform.resource_changes[_]
     rc.change.actions[_] == "delete"
     reason := sprintf("Deletion of %s is blocked in production", [rc.address])
@@ -78,8 +98,10 @@ Spacelift's GraphQL `PolicyEngineType` enum has exactly two values - there is no
 | Complete rule | `allow { body }` | `allow if { body }` |
 | Partial set rule | `deny[x] { body }` | `deny contains x if { body }` |
 | Function rule | `f(x) { body }` | `f(x) if { body }` |
-| Default rule | `default allow := false` | unchanged |
+| Default rule | `default threshold := 2` | unchanged |
 | Iteration (`coll[_]`), comprehensions, `sprintf`, string builtins | unchanged | unchanged |
+
+Never declare a `default` for a rule Spacelift reads (`allow`, `deny`, `track`, ...). The library already defaults it, and a second default fails to compile ("multiple default rules").
 
 ### Recommended default: the portable pattern
 
@@ -103,7 +125,7 @@ is_production if {
 }
 ```
 
-Verified live against Spacelift's API with a 2×2 simulation matrix: v0 syntax parses only under `REGO_V0`; the portable form parses under both and returns byte-identical decisions. See `examples/01-plan-guard-destructive.md` for the matrix and a complete verified portable PLAN policy.
+v0 syntax parses only under `REGO_V0`. The portable form parses under both and returns the same decision. See `examples/01-plan-guard-destructive.md` for the 2×2 matrix and a complete portable PLAN policy.
 
 **Prefer the portable pattern for all new policies.** Use bare v0 syntax only when editing an existing v0 policy where a minimal diff matters.
 
@@ -111,17 +133,18 @@ Verified live against Spacelift's API with a 2×2 simulation matrix: v0 syntax p
 
 1. `package spacelift`
 2. Header comment explaining the policy's purpose
-3. Imports (`import future.keywords.contains` / `import future.keywords.if` when portable)
+3. Imports (`import future.keywords.contains` / `import future.keywords.if` / `import future.keywords.in` when portable, or `import future.keywords` for all of them)
 4. Main rules (`deny`, `allow`, `track`, etc.)
 5. Helper rules
 
 ## Syntax reminders
 
 - **Sets vs booleans:** `deny[reason] { ... }` builds a set; `deny { ... }` is a boolean. Portable/v1 equivalents: `deny contains reason if { ... }` and `deny if { ... }`.
-- **Iteration:** `some x in collection` or `collection[_]`; prefer `some` for clarity in complex rules.
+- **Iteration:** `some x in collection` or `collection[_]`; prefer `some` for clarity in complex rules. Under `REGO_V0`, `in` needs `import future.keywords.in`.
 - **String matching:** `startswith(str, prefix)`, `endswith(str, suffix)`, `contains(str, substr)`, `regex.match(pattern, str)`.
 - **Comprehensions:** `[x | cond]` arrays, `{x | cond}` sets, `{k: v | cond}` objects.
-- **Defaults:** `default allow = false` - useful in ACCESS/LOGIN policies.
+- **Defaults:** only for your own helper rules - never for a rule Spacelift reads (see above).
 - **`:=` vs `==`:** `:=` is local assignment (preferred for locals), `==` is comparison.
-- **Negation:** `not some_rule` - the rule must be defined somewhere for negation to work.
-- **`with` keyword:** test-only input override - `allow with input as mock_input`.
+- **Negation:** `not some_rule` is true when `some_rule` is undefined, including when the input field it reads is missing or null. The rule must be defined in the policy or the body does not compile.
+- **Unavailable builtins:** `http.send`, `net.lookup_ip_addr`, `opa.runtime`, `rego.parse_module`, `time.now_ns` and `trace` do not compile in a Spacelift policy.
+- **`with` keyword:** input override - `allow with input as mock_input`.
