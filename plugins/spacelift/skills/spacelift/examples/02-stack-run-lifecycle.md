@@ -37,7 +37,7 @@ Capture the run `id`. State should be `QUEUED` or `READY`.
 ```
 query run
   variables: { id: "<runId>" }
-  select: "id state delta { resourcesAdded resourcesChanged resourcesDeleted } stateSetAt"
+  select: "id state delta { addCount changeCount deleteCount } updatedAt"
 ```
 
 Backoff: 5s → 10s → 20s → 40s, cap at 60s. Stop when:
@@ -81,7 +81,7 @@ Same backoff. State path: `CONFIRMED` → `APPLYING` → (`PERFORMING`) → `FIN
 ```
 query run
   variables: { id: "<runId>" }
-  select: "id state delta { resourcesAdded resourcesChanged resourcesDeleted } commit { hash } finished"
+  select: "id state delta { addCount changeCount deleteCount } commit { hash } finished"
 ```
 
 Surface: final state, delta, duration. If `FAILED`, include logs hint: "use `runStack(runId)` and the Spacelift UI for full logs."
