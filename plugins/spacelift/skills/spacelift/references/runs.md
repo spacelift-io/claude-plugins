@@ -54,7 +54,7 @@ A stack serializes one run at a time via lock; queued runs wait their turn. (`RE
 
 ```
 id state type createdAt updatedAt branch commit { hash authorLogin }
-delta { resourcesAdded resourcesChanged resourcesDeleted }
+delta { addCount changeCount deleteCount }
 ```
 
 ## Pitfalls
